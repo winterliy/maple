@@ -3,3 +3,13 @@ version: '${version}'
 main: dev.ledge.maple.MaplePlugin
 api-version: '26.3'
 description: Image plugin for GLAP1-compatible servers.
+softdepend: [ImageFrame]
+commands:
+  image:
+    description: Manage images from the server plugins/images folder.
+    usage: /image <set|del|reload|cancel>
+    permission: maple.admin
+permissions:
+  maple.admin:
+    description: Allows managing Maple image maps.
+    default: op
