@@ -1,0 +1,8 @@
+.gradle/
+build/
+.idea/
+.vscode/.classpath
+.vscode/.project
+.vscode/.settings/
+*.iml
+.DS_Store

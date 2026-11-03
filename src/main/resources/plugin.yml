@@ -1,0 +1,5 @@
+name: Maple
+version: '${version}'
+main: dev.ledge.maple.MaplePlugin
+api-version: '26.3'
+description: Image plugin for GLAP1-compatible servers.
