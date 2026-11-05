@@ -1,36 +1,51 @@
 package dev.ledge.maple;
 
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import javax.imageio.ImageIO;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Rotation;
+import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.permissions.PermissionAttachment;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.MapMeta;
+import org.bukkit.map.MapCanvas;
+import org.bukkit.map.MapRenderer;
+import org.bukkit.map.MapView;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class MaplePlugin extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
     private static final String PERMISSION = "maple.admin";
-    private static final Map<UUID, PendingSelection> SELECTIONS = new HashMap<>();
-    private final Map<String, String> images = new HashMap<>();
+    private static final int MAP_PIXELS = 128;
+    private static final int MAX_MAPS_PER_IMAGE = 256;
+    private final Map<String, ImageRecord> images = new HashMap<>();
+    private final Map<UUID, PendingSelection> selections = new HashMap<>();
     private Path imagesDirectory;
 
     @Override
@@ -43,7 +58,6 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        reloadImages();
         if (getCommand("image") == null) {
             getLogger().severe("plugin.yml에 image 명령어가 없습니다.");
             getServer().getPluginManager().disablePlugin(this);
@@ -52,76 +66,109 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
         getCommand("image").setExecutor(this);
         getCommand("image").setTabCompleter(this);
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Maple 활성화: " + imagesDirectory);
+        loadImages();
+        for (Map.Entry<String, ImageRecord> entry : images.entrySet()) {
+            try {
+                renderRecord(entry.getKey(), entry.getValue());
+            } catch (IOException exception) {
+                getLogger().warning("이미지 " + entry.getKey() + " 복구 실패: " + exception.getMessage());
+            }
+        }
+        getLogger().info("Maple 활성화: " + imagesDirectory + " (등록 이미지 " + images.size() + "개)");
     }
 
     @Override
     public void onDisable() {
-        SELECTIONS.clear();
+        selections.clear();
     }
 
-    private void reloadImages() {
+    private void loadImages() {
         reloadConfig();
         images.clear();
-        if (getConfig().isConfigurationSection("images")) {
-            for (String id : getConfig().getConfigurationSection("images").getKeys(false)) {
-                String file = getConfig().getString("images." + id);
-                if (file != null) images.put(id.toLowerCase(Locale.ROOT), file);
+        if (!getConfig().isConfigurationSection("images")) return;
+        for (String id : getConfig().getConfigurationSection("images").getKeys(false)) {
+            String file = getConfig().getString("images." + id + ".file");
+            String worldName = getConfig().getString("images." + id + ".world");
+            String faceName = getConfig().getString("images." + id + ".facing");
+            List<?> savedFrames = getConfig().getList("images." + id + ".frames", List.of());
+            if (file == null || worldName == null || faceName == null) continue;
+            try {
+                BlockFace facing = BlockFace.valueOf(faceName);
+                List<FrameRef> frames = new ArrayList<>();
+                for (Object item : savedFrames) {
+                    if (!(item instanceof Map<?, ?> row)) continue;
+                    frames.add(new FrameRef(
+                            String.valueOf(row.get("world")),
+                            number(row.get("x")), number(row.get("y")), number(row.get("z")), number(row.get("mapId"))));
+                }
+                ImageRecord record = new ImageRecord(file, worldName, facing, frames);
+                if (!frames.isEmpty()) images.put(id.toLowerCase(Locale.ROOT), record);
+            } catch (IllegalArgumentException exception) {
+                getLogger().warning("이미지 " + id + " 설정을 읽지 못했습니다: " + exception.getMessage());
             }
         }
+    }
+
+    private static int number(Object value) {
+        if (value instanceof Number numeric) return numeric.intValue();
+        return Integer.parseInt(String.valueOf(value));
+    }
+
+    private void saveRecord(String id, ImageRecord record) {
+        String root = "images." + id;
+        getConfig().set(root + ".file", record.filename);
+        getConfig().set(root + ".world", record.worldName);
+        getConfig().set(root + ".facing", record.facing.name());
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (FrameRef frame : record.frames) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("world", frame.worldName);
+            row.put("x", frame.x);
+            row.put("y", frame.y);
+            row.put("z", frame.z);
+            row.put("mapId", frame.mapId);
+            rows.add(row);
+        }
+        getConfig().set(root + ".frames", rows);
+        saveConfig();
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!sender.hasPermission(PERMISSION)) return noPermission(sender);
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
-            if (!sender.hasPermission(PERMISSION)) return noPermission(sender);
-            reloadImages();
-            if (sender instanceof Player player && Bukkit.getPluginManager().getPlugin("ImageFrame") != null) {
-                PermissionAttachment attachment = player.addAttachment(this);
-                attachment.setPermission("imageframe.refresh", true);
-                for (Map.Entry<String, String> entry : images.entrySet()) {
-                    Path image = resolveImage(entry.getValue());
-                    if (image != null && Files.isRegularFile(image)) {
-                        Bukkit.dispatchCommand(player, "imageframe refresh " + entry.getKey() + " " + image.toUri().toASCIIString());
-                    }
+            loadImages();
+            for (Map.Entry<String, ImageRecord> entry : images.entrySet()) {
+                try {
+                    renderRecord(entry.getKey(), entry.getValue());
+                } catch (IOException | IllegalArgumentException exception) {
+                    sender.sendMessage(Component.text("이미지 " + entry.getKey() + " 리로드 실패: " + exception.getMessage(), NamedTextColor.RED));
                 }
-                player.removeAttachment(attachment);
             }
-            sender.sendMessage(Component.text("Maple 이미지 목록을 다시 읽었습니다. 등록된 ID " + images.size() + "개.", NamedTextColor.GREEN));
+            sender.sendMessage(Component.text("Maple 이미지 " + images.size() + "개를 다시 불러왔습니다.", NamedTextColor.GREEN));
             return true;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("del")) {
-            if (!sender.hasPermission(PERMISSION)) return noPermission(sender);
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage(Component.text("이미지 ID 삭제는 해당 맵을 만든 플레이어가 게임 안에서 실행해야 합니다.", NamedTextColor.RED));
-                return true;
-            }
             String id = args[1].toLowerCase(Locale.ROOT);
-            if (!images.containsKey(id)) {
+            ImageRecord record = images.remove(id);
+            if (record == null) {
                 sender.sendMessage(Component.text("해당 이미지 ID가 없습니다: " + id, NamedTextColor.RED));
                 return true;
             }
-            if (Bukkit.getPluginManager().getPlugin("ImageFrame") != null) {
-                PermissionAttachment attachment = player.addAttachment(this);
-                attachment.setPermission("imageframe.delete", true);
-                Bukkit.dispatchCommand(player, "imageframe delete " + id);
-                player.removeAttachment(attachment);
-            }
-            images.remove(id);
+            clearRecord(record);
             getConfig().set("images." + id, null);
             saveConfig();
-            sender.sendMessage(Component.text("Maple 이미지 ID를 삭제했습니다: " + id, NamedTextColor.GREEN));
+            sender.sendMessage(Component.text("이미지와 Maple이 만든 액자 맵을 삭제했습니다: " + id, NamedTextColor.GREEN));
             return true;
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
-            if (!sender.hasPermission(PERMISSION)) return noPermission(sender);
             if (!(sender instanceof Player player)) {
                 sender.sendMessage(Component.text("이 명령은 게임 안에서 실행해야 합니다.", NamedTextColor.RED));
                 return true;
             }
             String filename = args[1];
-            String id = args[2];
-            if (!id.matches("[A-Za-z0-9_-]{1,48}")) {
+            String id = args[2].toLowerCase(Locale.ROOT);
+            if (!id.matches("[a-zA-Z0-9_-]{1,48}")) {
                 sender.sendMessage(Component.text("이미지 ID는 영문자, 숫자, _ 또는 -만 사용할 수 있습니다.", NamedTextColor.RED));
                 return true;
             }
@@ -130,25 +177,29 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
                 sender.sendMessage(Component.text("plugins/images 폴더에서 이미지 파일을 찾을 수 없습니다: " + filename, NamedTextColor.RED));
                 return true;
             }
-            if (images.containsKey(id.toLowerCase(Locale.ROOT))) {
-                sender.sendMessage(Component.text("이미 사용 중인 이미지 ID입니다. 먼저 /image del " + id + " 를 실행하세요.", NamedTextColor.RED));
+            try {
+                BufferedImage decoded = ImageIO.read(image.toFile());
+                if (decoded == null) throw new IOException("지원하지 않는 이미지 형식입니다.");
+            } catch (IOException exception) {
+                sender.sendMessage(Component.text("이미지를 열 수 없습니다: " + exception.getMessage(), NamedTextColor.RED));
                 return true;
             }
-            if (Bukkit.getPluginManager().getPlugin("ImageFrame") == null) {
-                sender.sendMessage(Component.text("ImageFrame 플러그인을 먼저 서버에 설치하고 활성화하세요.", NamedTextColor.RED));
+            if (images.containsKey(id)) {
+                sender.sendMessage(Component.text("이미 사용 중인 ID입니다. 먼저 /image del " + id + " 를 실행하세요.", NamedTextColor.RED));
                 return true;
             }
-            cancelSelection(player, false);
-            SELECTIONS.put(player.getUniqueId(), new PendingSelection(filename, id, image));
+            selections.put(player.getUniqueId(), new PendingSelection(filename, id));
             player.sendMessage(Component.text("첫 번째 액자(pos1)를 우클릭하세요. ", NamedTextColor.YELLOW)
-                    .append(Component.text("[취소]", NamedTextColor.RED)
-                            .clickEvent(ClickEvent.runCommand("/image cancel"))));
+                    .append(Component.text("[취소]", NamedTextColor.RED).clickEvent(ClickEvent.runCommand("/image cancel"))));
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("cancel")) {
             if (!(sender instanceof Player player)) return true;
-            if (cancelSelection(player, true)) return true;
-            player.sendMessage(Component.text("취소할 이미지 선택이 없습니다.", NamedTextColor.GRAY));
+            if (selections.remove(player.getUniqueId()) != null) {
+                player.sendMessage(Component.text("이미지 선택을 취소했습니다.", NamedTextColor.YELLOW));
+            } else {
+                player.sendMessage(Component.text("취소할 이미지 선택이 없습니다.", NamedTextColor.GRAY));
+            }
             return true;
         }
         sender.sendMessage(Component.text("사용법: /image set <파일명> <id> | /image del <id> | /image reload | /image cancel", NamedTextColor.YELLOW));
@@ -159,7 +210,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
     public void onFrameClick(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof ItemFrame frame)) return;
         Player player = event.getPlayer();
-        PendingSelection pending = SELECTIONS.get(player.getUniqueId());
+        PendingSelection pending = selections.get(player.getUniqueId());
         if (pending == null) return;
         event.setCancelled(true);
         Location clicked = frame.getLocation();
@@ -167,71 +218,200 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             pending.first = clicked;
             pending.facing = frame.getFacing();
             player.sendMessage(Component.text("pos1 설정 완료. 두 번째 액자(pos2)를 우클릭하세요. ", NamedTextColor.GREEN)
-                    .append(Component.text("[취소]", NamedTextColor.RED)
-                            .clickEvent(ClickEvent.runCommand("/image cancel"))));
+                    .append(Component.text("[취소]", NamedTextColor.RED).clickEvent(ClickEvent.runCommand("/image cancel"))));
             return;
         }
-        SELECTIONS.remove(player.getUniqueId());
         if (!pending.first.getWorld().equals(clicked.getWorld())) {
-            player.sendMessage(Component.text("같은 월드의 액자 두 개를 선택해야 합니다.", NamedTextColor.RED));
+            player.sendMessage(Component.text("같은 월드에서 선택해야 합니다. pos2를 다시 선택하세요.", NamedTextColor.RED));
             return;
         }
         if (pending.facing != frame.getFacing()) {
-            player.sendMessage(Component.text("pos1과 pos2 액자는 같은 방향의 벽을 향해야 합니다.", NamedTextColor.RED));
-            SELECTIONS.put(player.getUniqueId(), pending);
+            player.sendMessage(Component.text("두 액자는 같은 방향의 벽을 향해야 합니다. pos2를 다시 선택하세요.", NamedTextColor.RED));
             return;
         }
-        if (pending.first.getBlockX() == clicked.getBlockX()
-                && pending.first.getBlockY() == clicked.getBlockY()
-                && pending.first.getBlockZ() == clicked.getBlockZ()) {
-            player.sendMessage(Component.text("pos1과 다른 액자를 pos2로 선택하세요.", NamedTextColor.RED));
-            SELECTIONS.put(player.getUniqueId(), pending);
+        if (sameBlock(pending.first, clicked)) {
+            player.sendMessage(Component.text("pos1과 다른 액자를 선택하세요.", NamedTextColor.RED));
             return;
         }
-        applyImage(player, pending, clicked);
+        selections.remove(player.getUniqueId());
+        try {
+            List<ItemFrame> selectedFrames = findSelectedFrames(pending.first, clicked, pending.facing);
+            placeImage(pending, selectedFrames, pending.first.getWorld());
+            player.sendMessage(Component.text("이미지를 액자에 배치했습니다: " + pending.id, NamedTextColor.GREEN));
+        } catch (IOException | IllegalArgumentException exception) {
+            player.sendMessage(Component.text("이미지를 배치하지 못했습니다: " + exception.getMessage(), NamedTextColor.RED));
+        }
     }
 
-    private void applyImage(Player player, PendingSelection pending, Location second) {
-        try {
-            String world = pending.first.getWorld().getName();
-            String selection = "imageframe select " + world + " "
-                    + pending.first.getBlockX() + " " + pending.first.getBlockY() + " " + pending.first.getBlockZ() + " "
-                    + second.getBlockX() + " " + second.getBlockY() + " " + second.getBlockZ();
-            PermissionAttachment attachment = player.addAttachment(this);
-            attachment.setPermission("imageframe.select", true);
-            attachment.setPermission("imageframe.create", true);
-            Bukkit.dispatchCommand(player, selection);
+    private static boolean sameBlock(Location a, Location b) {
+        return a.getBlockX() == b.getBlockX() && a.getBlockY() == b.getBlockY() && a.getBlockZ() == b.getBlockZ();
+    }
 
-            String imageUrl = pending.image.toUri().toASCIIString();
-            String create = "imageframe create " + pending.id + " " + imageUrl + " selection nearest separated";
-            Bukkit.dispatchCommand(player, create);
-            player.removeAttachment(attachment);
+    private List<ItemFrame> findSelectedFrames(Location first, Location second, BlockFace facing) {
+        if (facing != BlockFace.NORTH && facing != BlockFace.SOUTH && facing != BlockFace.EAST && facing != BlockFace.WEST) {
+            throw new IllegalArgumentException("위쪽/아래쪽을 향한 액자 대신 벽의 액자를 선택하세요.");
+        }
+        boolean xPlane = facing == BlockFace.NORTH || facing == BlockFace.SOUTH;
+        if (xPlane && first.getBlockZ() != second.getBlockZ() || !xPlane && first.getBlockX() != second.getBlockX()) {
+            throw new IllegalArgumentException("선택한 두 액자가 같은 벽면에 있지 않습니다.");
+        }
+        int minX = Math.min(first.getBlockX(), second.getBlockX());
+        int maxX = Math.max(first.getBlockX(), second.getBlockX());
+        int minY = Math.min(first.getBlockY(), second.getBlockY());
+        int maxY = Math.max(first.getBlockY(), second.getBlockY());
+        int minZ = Math.min(first.getBlockZ(), second.getBlockZ());
+        int maxZ = Math.max(first.getBlockZ(), second.getBlockZ());
+        int width = xPlane ? maxX - minX + 1 : maxZ - minZ + 1;
+        int height = maxY - minY + 1;
+        if (width * height > MAX_MAPS_PER_IMAGE) throw new IllegalArgumentException("선택 범위가 너무 큽니다. 최대 " + MAX_MAPS_PER_IMAGE + "칸입니다.");
 
-            images.put(pending.id.toLowerCase(Locale.ROOT), pending.filename);
-            getConfig().set("images." + pending.id.toLowerCase(Locale.ROOT), pending.filename);
-            saveConfig();
-            player.sendMessage(Component.text("ImageFrame에 이미지 배치를 요청했습니다: " + pending.id, NamedTextColor.GREEN));
-        } catch (IllegalArgumentException exception) {
-            player.sendMessage(Component.text("액자 선택을 적용하지 못했습니다: " + exception.getMessage(), NamedTextColor.RED));
+        Map<String, ItemFrame> framesByPosition = new HashMap<>();
+        World world = first.getWorld();
+        Location center = new Location(world, (minX + maxX) / 2.0, (minY + maxY) / 2.0, (minZ + maxZ) / 2.0);
+        double xRange = xPlane ? width / 2.0 + 1 : 1.5;
+        double zRange = xPlane ? 1.5 : width / 2.0 + 1;
+        for (Entity entity : world.getNearbyEntities(center, xRange, height / 2.0 + 1, zRange)) {
+            if (!(entity instanceof ItemFrame itemFrame) || itemFrame.getFacing() != facing) continue;
+            Location location = itemFrame.getLocation();
+            int x = location.getBlockX(), y = location.getBlockY(), z = location.getBlockZ();
+            if (x < minX || x > maxX || y < minY || y > maxY || z < minZ || z > maxZ) continue;
+            framesByPosition.put(x + ":" + y + ":" + z, itemFrame);
+        }
+
+        List<ItemFrame> ordered = new ArrayList<>(width * height);
+        for (int row = maxY; row >= minY; row--) {
+            for (int col = 0; col < width; col++) {
+                int x = xPlane ? (facing == BlockFace.NORTH ? maxX - col : minX + col) : minX;
+                int z = xPlane ? minZ : (facing == BlockFace.EAST ? maxZ - col : minZ + col);
+                ItemFrame itemFrame = framesByPosition.get(x + ":" + row + ":" + z);
+                if (itemFrame == null) throw new IllegalArgumentException("선택 영역에 빈 칸이 있거나 액자가 빠져 있습니다.");
+                ItemStack held = itemFrame.getItem();
+                if (held != null && !held.getType().isAir()) throw new IllegalArgumentException("선택한 액자 영역은 비어 있어야 합니다.");
+                ordered.add(itemFrame);
+            }
+        }
+        return ordered;
+    }
+
+    private void placeImage(PendingSelection pending, List<ItemFrame> frames, World world) throws IOException {
+        BufferedImage source = readImage(resolveImage(pending.filename));
+        int width = frames.size() / (int) frames.stream().map(frame -> frame.getLocation().getBlockY()).distinct().count();
+        int height = frames.size() / width;
+        BufferedImage scaled = new BufferedImage(width * MAP_PIXELS, height * MAP_PIXELS, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = scaled.createGraphics();
+        graphics.drawImage(source, 0, 0, scaled.getWidth(), scaled.getHeight(), null);
+        graphics.dispose();
+
+        List<FrameRef> refs = new ArrayList<>(frames.size());
+        for (int index = 0; index < frames.size(); index++) {
+            ItemFrame frame = frames.get(index);
+            BufferedImage tile = scaled.getSubimage((index % width) * MAP_PIXELS, (index / width) * MAP_PIXELS, MAP_PIXELS, MAP_PIXELS);
+            MapView view = Bukkit.createMap(world);
+            view.setScale(MapView.Scale.CLOSEST);
+            for (MapRenderer renderer : new ArrayList<>(view.getRenderers())) view.removeRenderer(renderer);
+            view.addRenderer(new ImageTileRenderer(tile));
+            ItemStack map = new ItemStack(Material.FILLED_MAP);
+            MapMeta meta = (MapMeta) map.getItemMeta();
+            meta.setMapView(view);
+            map.setItemMeta(meta);
+            frame.setRotation(Rotation.NONE);
+            frame.setItem(map, false);
+            Location at = frame.getLocation();
+            refs.add(new FrameRef(world.getName(), at.getBlockX(), at.getBlockY(), at.getBlockZ(), view.getId()));
+        }
+        ImageRecord record = new ImageRecord(pending.filename, world.getName(), frames.getFirst().getFacing(), refs);
+        images.put(pending.id, record);
+        saveRecord(pending.id, record);
+    }
+
+    private void renderRecord(String id, ImageRecord record) throws IOException {
+        Path sourcePath = resolveImage(record.filename);
+        if (sourcePath == null || !Files.isRegularFile(sourcePath)) throw new IOException("plugins/images/" + record.filename + " 파일이 없습니다.");
+        World world = Bukkit.getWorld(record.worldName);
+        if (world == null) throw new IOException("월드가 로드되지 않았습니다: " + record.worldName);
+        int rows = record.frames.stream().map(frame -> frame.y).distinct().toList().size();
+        int width = record.frames.size() / Math.max(1, rows);
+        BufferedImage source = readImage(sourcePath);
+        BufferedImage scaled = new BufferedImage(width * MAP_PIXELS, rows * MAP_PIXELS, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = scaled.createGraphics();
+        graphics.drawImage(source, 0, 0, scaled.getWidth(), scaled.getHeight(), null);
+        graphics.dispose();
+        for (int index = 0; index < record.frames.size(); index++) {
+            FrameRef ref = record.frames.get(index);
+            MapView view = Bukkit.getMap(ref.mapId);
+            if (view == null) {
+                view = Bukkit.createMap(world);
+                view.setScale(MapView.Scale.CLOSEST);
+                ref.mapId = view.getId();
+            }
+            for (MapRenderer renderer : new ArrayList<>(view.getRenderers())) {
+                if (renderer instanceof ImageTileRenderer) view.removeRenderer(renderer);
+            }
+            int tileX = index % width;
+            int tileY = index / width;
+            view.addRenderer(new ImageTileRenderer(scaled.getSubimage(tileX * MAP_PIXELS, tileY * MAP_PIXELS, MAP_PIXELS, MAP_PIXELS)));
+            ItemFrame frame = findFrame(world, ref);
+            if (frame != null) {
+                ItemStack item = frame.getItem();
+                if (!(item != null && item.getItemMeta() instanceof MapMeta mapMeta && mapMeta.getMapView() != null
+                        && mapMeta.getMapView().getId() == view.getId())) {
+                    ItemStack map = new ItemStack(Material.FILLED_MAP);
+                    MapMeta meta = (MapMeta) map.getItemMeta();
+                    meta.setMapView(view);
+                    map.setItemMeta(meta);
+                    frame.setItem(map, false);
+                }
+            }
+        }
+        saveRecord(id, record);
+    }
+
+    private static BufferedImage readImage(Path path) throws IOException {
+        BufferedImage image = ImageIO.read(path.toFile());
+        if (image == null) throw new IOException("지원하지 않는 이미지 형식입니다.");
+        return image;
+    }
+
+    private static ItemFrame findFrame(World world, FrameRef ref) {
+        for (Entity entity : world.getNearbyEntities(new Location(world, ref.x, ref.y, ref.z), 1, 1, 1)) {
+            if (entity instanceof ItemFrame frame && sameBlock(frame.getLocation(), new Location(world, ref.x, ref.y, ref.z))) return frame;
+        }
+        return null;
+    }
+
+    private void clearRecord(ImageRecord record) {
+        World world = Bukkit.getWorld(record.worldName);
+        for (FrameRef ref : record.frames) {
+            MapView view = Bukkit.getMap(ref.mapId);
+            if (view != null) {
+                for (MapRenderer renderer : new ArrayList<>(view.getRenderers())) {
+                    if (renderer instanceof ImageTileRenderer) view.removeRenderer(renderer);
+                }
+            }
+            if (world == null) continue;
+            ItemFrame frame = findFrame(world, ref);
+            if (frame == null) continue;
+            ItemStack item = frame.getItem();
+            if (item != null && item.getItemMeta() instanceof MapMeta mapMeta && mapMeta.getMapView() != null
+                    && mapMeta.getMapView().getId() == ref.mapId) {
+                frame.setItem(new ItemStack(Material.AIR), false);
+            }
         }
     }
 
     private Path resolveImage(String filename) {
         if (filename == null || filename.isBlank()) return null;
-        Path requested = Path.of(filename);
+        Path requested;
+        try {
+            requested = Path.of(filename);
+        } catch (RuntimeException exception) {
+            return null;
+        }
         if (requested.getNameCount() != 1 || requested.isAbsolute()) return null;
         String lower = filename.toLowerCase(Locale.ROOT);
-        if (!(lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
-                || lower.endsWith(".gif") || lower.endsWith(".webp"))) return null;
+        if (!(lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".gif"))) return null;
         Path result = imagesDirectory.resolve(requested).normalize();
         return result.startsWith(imagesDirectory) ? result : null;
-    }
-
-    private boolean cancelSelection(Player player, boolean message) {
-        PendingSelection removed = SELECTIONS.remove(player.getUniqueId());
-        if (removed == null) return false;
-        if (message) player.sendMessage(Component.text("이미지 선택을 취소했습니다.", NamedTextColor.YELLOW));
-        return true;
     }
 
     private boolean noPermission(CommandSender sender) {
@@ -241,36 +421,81 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        SELECTIONS.remove(event.getPlayer().getUniqueId());
+        selections.remove(event.getPlayer().getUniqueId());
     }
 
     @Override
-    public java.util.List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return java.util.List.of("set", "del", "reload", "cancel").stream()
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 1) return List.of("set", "del", "reload", "cancel").stream()
                 .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
         if (args.length == 2 && args[0].equalsIgnoreCase("set")) {
             try (var files = Files.list(imagesDirectory)) {
                 return files.filter(Files::isRegularFile).map(path -> path.getFileName().toString())
                         .filter(name -> name.startsWith(args[1])).toList();
             } catch (IOException ignored) {
-                return java.util.List.of();
+                return List.of();
             }
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("del")) return images.keySet().stream().toList();
-        return java.util.List.of();
+        return List.of();
+    }
+
+    private static final class ImageTileRenderer extends MapRenderer {
+        private final BufferedImage tile;
+        private boolean rendered;
+
+        private ImageTileRenderer(BufferedImage tile) {
+            super(false);
+            this.tile = tile;
+        }
+
+        @Override
+        public void render(MapView map, MapCanvas canvas, Player player) {
+            if (rendered) return;
+            canvas.drawImage(0, 0, tile);
+            rendered = true;
+        }
     }
 
     private static final class PendingSelection {
         private final String filename;
         private final String id;
-        private final Path image;
         private Location first;
         private BlockFace facing;
 
-        private PendingSelection(String filename, String id, Path image) {
+        private PendingSelection(String filename, String id) {
             this.filename = filename;
             this.id = id;
-            this.image = image;
+        }
+    }
+
+    private static final class ImageRecord {
+        private final String filename;
+        private final String worldName;
+        private final BlockFace facing;
+        private final List<FrameRef> frames;
+
+        private ImageRecord(String filename, String worldName, BlockFace facing, List<FrameRef> frames) {
+            this.filename = filename;
+            this.worldName = worldName;
+            this.facing = facing;
+            this.frames = frames;
+        }
+    }
+
+    private static final class FrameRef {
+        private final String worldName;
+        private final int x;
+        private final int y;
+        private final int z;
+        private int mapId;
+
+        private FrameRef(String worldName, int x, int y, int z, int mapId) {
+            this.worldName = worldName;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.mapId = mapId;
         }
     }
 }
