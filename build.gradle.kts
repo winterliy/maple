@@ -29,3 +29,7 @@ tasks.processResources {
         expand("version" to project.version)
     }
 }
+
+tasks.jar {
+    archiveClassifier.set("paper-26.3")
+}

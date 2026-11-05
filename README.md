@@ -4,7 +4,7 @@ Maple is a self-contained Paper plugin for putting local images on item frames. 
 
 ## Install
 
-1. Put `maple-0.2.0.jar` in the server's `plugins` folder and restart.
+1. Put `maple-0.2.0-paper-26.3.jar` in the server's `plugins` folder and restart.
 2. Put `.png`, `.jpg`, `.jpeg`, or `.gif` images in `plugins/images`.
 3. Grant `maple.admin` to image managers (operators have it by default).
 
@@ -30,4 +30,4 @@ Image downloads require HTTPS. Downloading and decoding run off the server threa
 ./gradlew build
 ```
 
-The plugin JAR is created in `build/libs/`.
+The plugin JAR is created as `build/libs/maple-0.2.0-paper-26.3.jar`.
