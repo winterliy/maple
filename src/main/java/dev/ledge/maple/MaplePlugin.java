@@ -3,6 +3,7 @@ package dev.ledge.maple;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
     private static final int MAX_MAPS_PER_IMAGE = 256;
     private final Map<String, ImageRecord> images = new HashMap<>();
     private final Map<UUID, PendingSelection> selections = new HashMap<>();
+    private final ImageDownloadService imageDownloads = new ImageDownloadService();
     private Path imagesDirectory;
 
     @Override
@@ -80,6 +82,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
     @Override
     public void onDisable() {
         selections.clear();
+        imageDownloads.close();
     }
 
     private void loadImages() {
@@ -148,6 +151,35 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             sender.sendMessage(Component.text("Maple 이미지 " + images.size() + "개를 다시 불러왔습니다.", NamedTextColor.GREEN));
             return true;
         }
+        if (args.length == 3 && args[0].equalsIgnoreCase("load")) {
+            URI url;
+            try {
+                url = URI.create(args[2]);
+            } catch (IllegalArgumentException exception) {
+                sender.sendMessage(Component.text("URL 형식이 올바르지 않습니다.", NamedTextColor.RED));
+                return true;
+            }
+            sender.sendMessage(Component.text("이미지를 다운로드합니다: " + args[1], NamedTextColor.YELLOW));
+            imageDownloads.download(imagesDirectory, args[1], url).whenComplete((path, failure) -> {
+                if (!isEnabled()) return;
+                try {
+                    getServer().getScheduler().runTask(this, () -> {
+                        if (!isEnabled()) return;
+                        if (failure != null) {
+                            Throwable cause = failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null
+                                    ? failure.getCause() : failure;
+                            String message = cause.getMessage() == null ? "알 수 없는 오류" : cause.getMessage();
+                            sender.sendMessage(Component.text("이미지 다운로드 실패: " + message, NamedTextColor.RED));
+                            return;
+                        }
+                        sender.sendMessage(Component.text("이미지를 저장했습니다: " + path.getFileName(), NamedTextColor.GREEN));
+                    });
+                } catch (org.bukkit.plugin.IllegalPluginAccessException ignored) {
+                    // The server is shutting down while the download is completing.
+                }
+            });
+            return true;
+        }
         if (args.length == 2 && args[0].equalsIgnoreCase("del")) {
             String id = args[1].toLowerCase(Locale.ROOT);
             ImageRecord record = images.remove(id);
@@ -202,7 +234,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             }
             return true;
         }
-        sender.sendMessage(Component.text("사용법: /image set <파일명> <id> | /image del <id> | /image reload | /image cancel", NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text("사용법: /image load <이름> <HTTPS URL> | /image set <파일명> <id> | /image del <id> | /image reload | /image cancel", NamedTextColor.YELLOW));
         return true;
     }
 
@@ -426,7 +458,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return List.of("set", "del", "reload", "cancel").stream()
+        if (args.length == 1) return List.of("load", "set", "del", "reload", "cancel").stream()
                 .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
         if (args.length == 2 && args[0].equalsIgnoreCase("set")) {
             try (var files = Files.list(imagesDirectory)) {

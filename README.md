@@ -12,6 +12,7 @@ Maple creates `plugins/images` on its first start.
 
 ## Commands
 
+- `/image load <name> <https-url>` — downloads a PNG, JPEG, or GIF (first frame) to `plugins/images`; the file extension is inferred from the image, or validated against an extension in `name`. Downloads are limited to 10 MiB and 16 megapixels. Existing names are not overwritten.
 - `/image set <filename> <id>` — right-click two item frames on the same wall to choose the rectangular area. Maple scales the image across the selected maps and installs them in the frames.
 - `/image del <id>` — removes the image ID and clears those frames if they still contain the maps created by Maple.
 - `/image reload` — reloads saved image records and redraws them from the files in `plugins/images`.
@@ -20,6 +21,8 @@ Maple creates `plugins/images` on its first start.
 Image IDs are stored in `plugins/Maple/config.yml`. Each registered image remembers its file, world, item frame positions, and map IDs so Maple can restore its renderers after a restart.
 
 Image decoding supports static PNG, JPEG, and the first frame of GIF files through Java ImageIO. WebP and GIF animation are not supported yet.
+
+Image downloads require HTTPS. Downloading and decoding run off the server thread; the resulting file is only added after validation succeeds.
 
 ## Build
 
