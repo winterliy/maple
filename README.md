@@ -42,3 +42,14 @@ A real Minecraft 26.3 client (offline test account) joined isolated Paper 26.3 b
 - Fixed: the off-hand half of the final right-click rotated the last map. Selection now ignores the off-hand event, and frames holding Maple maps can no longer be rotated or knocked out.
 - Fabric now keeps transparent pixels transparent, matching Paper.
 - `/image del`, `/image reload` and a server restart restored or removed the placement as expected.
+
+## Fabric mod
+
+The Fabric server mod lives in `fabric/` (see `fabric/README.md`). It provides the same `/image` commands and
+filled-map output, and is built separately:
+
+```sh
+./gradlew -p fabric build
+```
+
+Release artifacts are named `maple-<version>-<paper|fabric>-<minecraft version>.jar`.
