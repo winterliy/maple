@@ -159,6 +159,10 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
                 sender.sendMessage(Component.text("URL 형식이 올바르지 않습니다.", NamedTextColor.RED));
                 return true;
             }
+            if (!"https".equalsIgnoreCase(url.getScheme()) || url.getHost() == null || url.getUserInfo() != null) {
+                sender.sendMessage(Component.text("이미지 다운로드 실패: 안전한 이미지 URL(HTTPS)을 입력하세요.", NamedTextColor.RED));
+                return true;
+            }
             sender.sendMessage(Component.text("이미지를 다운로드합니다: " + args[1], NamedTextColor.YELLOW));
             imageDownloads.download(imagesDirectory, args[1], url).whenComplete((path, failure) -> {
                 if (!isEnabled()) return;
@@ -243,7 +247,16 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
         if (!(event.getRightClicked() instanceof ItemFrame frame)) return;
         Player player = event.getPlayer();
         PendingSelection pending = selections.get(player.getUniqueId());
-        if (pending == null) return;
+        boolean managed = isMapleFrame(frame);
+        // One right-click fires for both hands; only the main hand selects, and neither may rotate a Maple map.
+        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) {
+            if (pending != null || managed) event.setCancelled(true);
+            return;
+        }
+        if (pending == null) {
+            if (managed) event.setCancelled(true);
+            return;
+        }
         event.setCancelled(true);
         Location clicked = frame.getLocation();
         if (pending.first == null) {
@@ -470,6 +483,22 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("del")) return images.keySet().stream().toList();
         return List.of();
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onFrameDamage(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+        if (event.getEntity() instanceof ItemFrame frame && isMapleFrame(frame)) event.setCancelled(true);
+    }
+
+    private boolean isMapleFrame(ItemFrame frame) {
+        ItemStack item = frame.getItem();
+        if (item.getType() != Material.FILLED_MAP || !(item.getItemMeta() instanceof MapMeta meta) || !meta.hasMapView()
+                || meta.getMapView() == null) return false;
+        int id = meta.getMapView().getId();
+        for (ImageRecord record : images.values()) {
+            for (FrameRef ref : record.frames) if (ref.mapId == id) return true;
+        }
+        return false;
     }
 
     private static final class ImageTileRenderer extends MapRenderer {

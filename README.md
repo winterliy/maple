@@ -31,3 +31,14 @@ Image downloads require HTTPS. Downloading and decoding run off the server threa
 ```
 
 The plugin JAR is created as `build/libs/maple-0.2.0-paper-26.3.jar`.
+
+
+## In-game check (2026-11-08, branch `26.3`)
+
+A real Minecraft 26.3 client (offline test account) joined isolated Paper 26.3 build 218 and Fabric 26.3 dev servers:
+
+- `/image load` saved an HTTPS PNG (Paper `plugins/images`, Fabric `mods/images`); an `http://` URL is now rejected before the download notice.
+- `/image set` with two real right-clicks on a 2×2 item-frame wall placed the image; the client received the maps and the frames showed the full picture (screenshots checked).
+- Fixed: the off-hand half of the final right-click rotated the last map. Selection now ignores the off-hand event, and frames holding Maple maps can no longer be rotated or knocked out.
+- Fabric now keeps transparent pixels transparent, matching Paper.
+- `/image del`, `/image reload` and a server restart restored or removed the placement as expected.
