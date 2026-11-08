@@ -6,3 +6,7 @@ build/
 .vscode/.settings/
 *.iml
 .DS_Store
+
+# documentation kept locally only
+*.md
+README*
