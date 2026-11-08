@@ -53,3 +53,7 @@ filled-map output, and is built separately:
 ```
 
 Release artifacts are named `maple-<version>-<paper|fabric>-<minecraft version>.jar`.
+
+## License
+
+MIT. See `LICENSE`. No code from ImageFrame, CustomImages or ImageCanvas is included.
