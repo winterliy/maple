@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.19.4-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.18.2-R0.1-SNAPSHOT")
 }
 
 java {
@@ -31,5 +31,5 @@ tasks.processResources {
 }
 
 tasks.jar {
-    archiveClassifier.set("paper-1.19.4")
+    archiveClassifier.set("paper-1.18.2")
 }
