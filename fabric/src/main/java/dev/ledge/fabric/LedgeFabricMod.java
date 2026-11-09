@@ -1,17 +1,20 @@
 package dev.ledge.fabric;
 
 import net.fabricmc.api.ModInitializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.legacyfabric.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 
 public final class LedgeFabricMod implements ModInitializer {
-    public static final String MOD_ID = "ledge_fabric";
-    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-    private final FabricImageService imageService = new FabricImageService();
+    private static FabricImageService service;
+
+    static FabricImageService service0() { return service; }
+
+    public static FabricImageService service() { return service; }
 
     @Override
     public void onInitialize() {
-        imageService.initialize();
-        LOGGER.info("ledge-fabric image commands registered.");
+        service = new FabricImageService();
+        ServerLifecycleEvents.SERVER_STARTING.register(service::onServerStarting);
+        ServerLifecycleEvents.SERVER_STARTED.register(service::onServerStarted);
+        System.out.println("[Maple] Legacy Fabric 0.2.0 initialized for Minecraft 1.12.2.");
     }
 }

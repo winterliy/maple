@@ -2,18 +2,13 @@
   "schemaVersion": 1,
   "id": "ledge_fabric",
   "version": "${version}",
-  "name": "Maple Fabric",
-  "description": "Server-side image map placement for Minecraft item frames.",
-  "environment": "*",
-  "entrypoints": {
-    "main": [
-      "dev.ledge.fabric.LedgeFabricMod"
-    ]
-  },
-  "depends": {
-    "fabricloader": ">=0.20.1",
-    "minecraft": "~26.3",
-    "java": ">=25",
-    "fabric-api": "*"
-  }
+  "name": "Maple",
+  "description": "Server-side image map mod for Minecraft 1.12.2 (Legacy Fabric): /image load, set, del, reload, cancel.",
+  "authors": ["winterliy"],
+  "contact": { "sources": "https://github.com/winterliy/maple" },
+  "license": "MIT",
+  "environment": "server",
+  "entrypoints": { "main": ["dev.ledge.fabric.LedgeFabricMod"] },
+  "mixins": ["maple-legacy.mixins.json"],
+  "depends": { "fabricloader": ">=0.15.0", "minecraft": "1.12.2" }
 }
