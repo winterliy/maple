@@ -26,7 +26,7 @@ final class ImageDownloadService implements AutoCloseable {
     private static final long MAX_IMAGE_PIXELS = 16_777_216L;
     private static final Pattern NAME = Pattern.compile("([\\p{L}\\p{N}_-]{1,48})(?:\\.(png|jpe?g|gif))?", Pattern.CASE_INSENSITIVE);
 
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Executors.newCachedThreadPool();
     CompletableFuture<Path> download(Path directory, String requestedName, URI source) {
         return CompletableFuture.supplyAsync(() -> {
             try {
