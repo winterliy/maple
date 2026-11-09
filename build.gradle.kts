@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.destroystokyo.paper:paper-api:1.14.4-R0.1-SNAPSHOT")
+    compileOnly("com.destroystokyo.paper:paper-api:1.13.2-R0.1-SNAPSHOT")
     compileOnly("org.jetbrains:annotations:24.1.0")
     annotationProcessor("com.pkware.jabel:jabel-javac-plugin:1.0.1-2")
     compileOnly("com.pkware.jabel:jabel-javac-plugin:1.0.1-2")
@@ -36,5 +36,5 @@ tasks.processResources {
 }
 
 tasks.jar {
-    archiveClassifier.set("paper-1.14.4")
+    archiveClassifier.set("paper-1.13.2")
 }

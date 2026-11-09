@@ -327,7 +327,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
                 ItemFrame itemFrame = framesByPosition.get(x + ":" + row + ":" + z);
                 if (itemFrame == null) throw new IllegalArgumentException("선택 영역에 빈 칸이 있거나 액자가 빠져 있습니다.");
                 ItemStack held = itemFrame.getItem();
-                if (held != null && !held.getType().isAir()) throw new IllegalArgumentException("선택한 액자 영역은 비어 있어야 합니다.");
+                if (held != null && held.getType() != Material.AIR) throw new IllegalArgumentException("선택한 액자 영역은 비어 있어야 합니다.");
                 ordered.add(itemFrame);
             }
         }
