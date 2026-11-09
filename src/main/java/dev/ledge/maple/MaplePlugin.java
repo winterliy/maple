@@ -14,10 +14,8 @@ import java.util.Map;
 import java.util.UUID;
 import javax.imageio.ImageIO;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Rotation;
@@ -145,10 +143,10 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
                 try {
                     renderRecord(entry.getKey(), entry.getValue());
                 } catch (IOException | IllegalArgumentException exception) {
-                    sender.sendMessage(Component.text("이미지 " + entry.getKey() + " 리로드 실패: " + exception.getMessage(), NamedTextColor.RED));
+                    sender.sendMessage((ChatColor.RED + "이미지 " + entry.getKey() + " 리로드 실패: " + exception.getMessage()));
                 }
             }
-            sender.sendMessage(Component.text("Maple 이미지 " + images.size() + "개를 다시 불러왔습니다.", NamedTextColor.GREEN));
+            sender.sendMessage((ChatColor.GREEN + "Maple 이미지 " + images.size() + "개를 다시 불러왔습니다."));
             return true;
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("load")) {
@@ -156,14 +154,14 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             try {
                 url = URI.create(args[2]);
             } catch (IllegalArgumentException exception) {
-                sender.sendMessage(Component.text("URL 형식이 올바르지 않습니다.", NamedTextColor.RED));
+                sender.sendMessage((ChatColor.RED + "URL 형식이 올바르지 않습니다."));
                 return true;
             }
             if (!"https".equalsIgnoreCase(url.getScheme()) || url.getHost() == null || url.getUserInfo() != null) {
-                sender.sendMessage(Component.text("이미지 다운로드 실패: 안전한 이미지 URL(HTTPS)을 입력하세요.", NamedTextColor.RED));
+                sender.sendMessage((ChatColor.RED + "이미지 다운로드 실패: 안전한 이미지 URL(HTTPS)을 입력하세요."));
                 return true;
             }
-            sender.sendMessage(Component.text("이미지를 다운로드합니다: " + args[1], NamedTextColor.YELLOW));
+            sender.sendMessage((ChatColor.YELLOW + "이미지를 다운로드합니다: " + args[1]));
             imageDownloads.download(imagesDirectory, args[1], url).whenComplete((path, failure) -> {
                 if (!isEnabled()) return;
                 try {
@@ -173,10 +171,10 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
                             Throwable cause = failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null
                                     ? failure.getCause() : failure;
                             String message = cause.getMessage() == null ? "알 수 없는 오류" : cause.getMessage();
-                            sender.sendMessage(Component.text("이미지 다운로드 실패: " + message, NamedTextColor.RED));
+                            sender.sendMessage((ChatColor.RED + "이미지 다운로드 실패: " + message));
                             return;
                         }
-                        sender.sendMessage(Component.text("이미지를 저장했습니다: " + path.getFileName(), NamedTextColor.GREEN));
+                        sender.sendMessage((ChatColor.GREEN + "이미지를 저장했습니다: " + path.getFileName()));
                     });
                 } catch (org.bukkit.plugin.IllegalPluginAccessException ignored) {
                     // The server is shutting down while the download is completing.
@@ -188,57 +186,56 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             String id = args[1].toLowerCase(Locale.ROOT);
             ImageRecord record = images.remove(id);
             if (record == null) {
-                sender.sendMessage(Component.text("해당 이미지 ID가 없습니다: " + id, NamedTextColor.RED));
+                sender.sendMessage((ChatColor.RED + "해당 이미지 ID가 없습니다: " + id));
                 return true;
             }
             clearRecord(record);
             getConfig().set("images." + id, null);
             saveConfig();
-            sender.sendMessage(Component.text("이미지와 Maple이 만든 액자 맵을 삭제했습니다: " + id, NamedTextColor.GREEN));
+            sender.sendMessage((ChatColor.GREEN + "이미지와 Maple이 만든 액자 맵을 삭제했습니다: " + id));
             return true;
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage(Component.text("이 명령은 게임 안에서 실행해야 합니다.", NamedTextColor.RED));
+                sender.sendMessage((ChatColor.RED + "이 명령은 게임 안에서 실행해야 합니다."));
                 return true;
             }
             String filename = args[1];
             String id = args[2].toLowerCase(Locale.ROOT);
             if (!id.matches("[a-zA-Z0-9_-]{1,48}")) {
-                sender.sendMessage(Component.text("이미지 ID는 영문자, 숫자, _ 또는 -만 사용할 수 있습니다.", NamedTextColor.RED));
+                sender.sendMessage((ChatColor.RED + "이미지 ID는 영문자, 숫자, _ 또는 -만 사용할 수 있습니다."));
                 return true;
             }
             Path image = resolveImage(filename);
             if (image == null || !Files.isRegularFile(image)) {
-                sender.sendMessage(Component.text("plugins/images 폴더에서 이미지 파일을 찾을 수 없습니다: " + filename, NamedTextColor.RED));
+                sender.sendMessage((ChatColor.RED + "plugins/images 폴더에서 이미지 파일을 찾을 수 없습니다: " + filename));
                 return true;
             }
             try {
                 BufferedImage decoded = ImageIO.read(image.toFile());
                 if (decoded == null) throw new IOException("지원하지 않는 이미지 형식입니다.");
             } catch (IOException exception) {
-                sender.sendMessage(Component.text("이미지를 열 수 없습니다: " + exception.getMessage(), NamedTextColor.RED));
+                sender.sendMessage((ChatColor.RED + "이미지를 열 수 없습니다: " + exception.getMessage()));
                 return true;
             }
             if (images.containsKey(id)) {
-                sender.sendMessage(Component.text("이미 사용 중인 ID입니다. 먼저 /image del " + id + " 를 실행하세요.", NamedTextColor.RED));
+                sender.sendMessage((ChatColor.RED + "이미 사용 중인 ID입니다. 먼저 /image del " + id + " 를 실행하세요."));
                 return true;
             }
             selections.put(player.getUniqueId(), new PendingSelection(filename, id));
-            player.sendMessage(Component.text("첫 번째 액자(pos1)를 우클릭하세요. ", NamedTextColor.YELLOW)
-                    .append(Component.text("[취소]", NamedTextColor.RED).clickEvent(ClickEvent.runCommand("/image cancel"))));
+            sendCancelable(player, ChatColor.YELLOW + "첫 번째 액자(pos1)를 우클릭하세요. ");
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("cancel")) {
             if (!(sender instanceof Player player)) return true;
             if (selections.remove(player.getUniqueId()) != null) {
-                player.sendMessage(Component.text("이미지 선택을 취소했습니다.", NamedTextColor.YELLOW));
+                player.sendMessage((ChatColor.YELLOW + "이미지 선택을 취소했습니다."));
             } else {
-                player.sendMessage(Component.text("취소할 이미지 선택이 없습니다.", NamedTextColor.GRAY));
+                player.sendMessage((ChatColor.GRAY + "취소할 이미지 선택이 없습니다."));
             }
             return true;
         }
-        sender.sendMessage(Component.text("사용법: /image load <이름> <HTTPS URL> | /image set <파일명> <id> | /image del <id> | /image reload | /image cancel", NamedTextColor.YELLOW));
+        sender.sendMessage((ChatColor.YELLOW + "사용법: /image load <이름> <HTTPS URL> | /image set <파일명> <id> | /image del <id> | /image reload | /image cancel"));
         return true;
     }
 
@@ -262,29 +259,28 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
         if (pending.first == null) {
             pending.first = clicked;
             pending.facing = frame.getFacing();
-            player.sendMessage(Component.text("pos1 설정 완료. 두 번째 액자(pos2)를 우클릭하세요. ", NamedTextColor.GREEN)
-                    .append(Component.text("[취소]", NamedTextColor.RED).clickEvent(ClickEvent.runCommand("/image cancel"))));
+            sendCancelable(player, ChatColor.GREEN + "pos1 설정 완료. 두 번째 액자(pos2)를 우클릭하세요. ");
             return;
         }
         if (!pending.first.getWorld().equals(clicked.getWorld())) {
-            player.sendMessage(Component.text("같은 월드에서 선택해야 합니다. pos2를 다시 선택하세요.", NamedTextColor.RED));
+            player.sendMessage((ChatColor.RED + "같은 월드에서 선택해야 합니다. pos2를 다시 선택하세요."));
             return;
         }
         if (pending.facing != frame.getFacing()) {
-            player.sendMessage(Component.text("두 액자는 같은 방향의 벽을 향해야 합니다. pos2를 다시 선택하세요.", NamedTextColor.RED));
+            player.sendMessage((ChatColor.RED + "두 액자는 같은 방향의 벽을 향해야 합니다. pos2를 다시 선택하세요."));
             return;
         }
         if (sameBlock(pending.first, clicked)) {
-            player.sendMessage(Component.text("pos1과 다른 액자를 선택하세요.", NamedTextColor.RED));
+            player.sendMessage((ChatColor.RED + "pos1과 다른 액자를 선택하세요."));
             return;
         }
         selections.remove(player.getUniqueId());
         try {
             List<ItemFrame> selectedFrames = findSelectedFrames(pending.first, clicked, pending.facing);
             placeImage(pending, selectedFrames, pending.first.getWorld());
-            player.sendMessage(Component.text("이미지를 액자에 배치했습니다: " + pending.id, NamedTextColor.GREEN));
+            player.sendMessage((ChatColor.GREEN + "이미지를 액자에 배치했습니다: " + pending.id));
         } catch (IOException | IllegalArgumentException exception) {
-            player.sendMessage(Component.text("이미지를 배치하지 못했습니다: " + exception.getMessage(), NamedTextColor.RED));
+            player.sendMessage((ChatColor.RED + "이미지를 배치하지 못했습니다: " + exception.getMessage()));
         }
     }
 
@@ -460,7 +456,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
     }
 
     private boolean noPermission(CommandSender sender) {
-        sender.sendMessage(Component.text("권한이 없습니다.", NamedTextColor.RED));
+        sender.sendMessage((ChatColor.RED + "권한이 없습니다."));
         return true;
     }
 
@@ -558,5 +554,15 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             this.z = z;
             this.mapId = mapId;
         }
+    }
+
+    /** Message with a clickable [취소] button (Adventure is not available before Paper 1.16). */
+    private static void sendCancelable(Player player, String text) {
+        net.md_5.bungee.api.chat.TextComponent base = new net.md_5.bungee.api.chat.TextComponent(text);
+        net.md_5.bungee.api.chat.TextComponent button = new net.md_5.bungee.api.chat.TextComponent("[취소]");
+        button.setColor(net.md_5.bungee.api.ChatColor.RED);
+        button.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/image cancel"));
+        base.addExtra(button);
+        player.spigot().sendMessage(base);
     }
 }
