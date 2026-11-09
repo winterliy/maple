@@ -27,12 +27,11 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.ItemFrame;
@@ -91,7 +90,7 @@ final class FabricImageService {
 
     private void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("image")
-                .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
+                .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("load")
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .then(Commands.argument("url", StringArgumentType.greedyString())
@@ -191,7 +190,7 @@ final class FabricImageService {
             return pending != null || managed ? InteractionResult.FAIL : InteractionResult.PASS;
         }
         if (pending == null) return managed ? InteractionResult.FAIL : InteractionResult.PASS;
-        if (!serverPlayer.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
+        if (!serverPlayer.hasPermissions(2)) {
             selections.remove(serverPlayer.getUUID());
             serverPlayer.sendSystemMessage(Component.literal("권한이 없어 이미지 선택을 취소했습니다."));
             return InteractionResult.FAIL;
@@ -204,12 +203,12 @@ final class FabricImageService {
         BlockPos clicked = frame.blockPosition();
         if (pending.first == null) {
             pending.first = clicked;
-            pending.dimension = serverLevel.dimension().identifier().toString();
+            pending.dimension = serverLevel.dimension().location().toString();
             pending.facing = facing;
             serverPlayer.sendSystemMessage(Component.literal("pos1 설정 완료. 두 번째 액자를 우클릭하세요."));
             return InteractionResult.FAIL;
         }
-        if (!pending.dimension.equals(serverLevel.dimension().identifier().toString())) {
+        if (!pending.dimension.equals(serverLevel.dimension().location().toString())) {
             serverPlayer.sendSystemMessage(Component.literal("같은 월드에서 선택해야 합니다."));
             return InteractionResult.FAIL;
         }
@@ -251,7 +250,7 @@ final class FabricImageService {
             }
             ImageMapPainter.draw(level, pending.image, selection.width, selection.height, mapIds);
             ImageLayoutStore.ImageRecord record = new ImageLayoutStore.ImageRecord(pending.filename,
-                    level.dimension().identifier().toString(), pending.facing.name(), selection.width, selection.height, frames);
+                    level.dimension().location().toString(), pending.facing.name(), selection.width, selection.height, frames);
             images.put(pending.id, record);
             layoutStore.save(images);
         } catch (IOException | RuntimeException exception) {
@@ -405,7 +404,7 @@ final class FabricImageService {
 
     private static ServerLevel findLevel(MinecraftServer server, String dimension) {
         try {
-            ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, Identifier.parse(dimension));
+            ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(dimension));
             return server.getLevel(key);
         } catch (IllegalArgumentException exception) {
             return null;

@@ -93,7 +93,8 @@ final class ImageMapPainter {
                 MapColor color = MapColor.byId(id);
                 if (color == null || color.id != id) continue;
                 for (MapColor.Brightness brightness : MapColor.Brightness.values()) {
-                    int rgb = color.calculateARGBColor(brightness);
+                    int abgr = color.calculateRGBColor(brightness);
+                    int rgb = (abgr & 0xFF00FF00) | ((abgr & 0xFF) << 16) | ((abgr >> 16) & 0xFF);
                     colors.add(new PaletteColor(color.getPackedId(brightness), (rgb >>> 16) & 0xFF,
                             (rgb >>> 8) & 0xFF, rgb & 0xFF));
                 }
