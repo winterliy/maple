@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.18.2-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.17.1-R0.1-SNAPSHOT")
 }
 
 java {
@@ -19,7 +19,7 @@ java {
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(17)
+    options.release.set(16)
     options.encoding = "UTF-8"
 }
 
@@ -31,5 +31,5 @@ tasks.processResources {
 }
 
 tasks.jar {
-    archiveClassifier.set("paper-1.18.2")
+    archiveClassifier.set("paper-1.17.1")
 }
