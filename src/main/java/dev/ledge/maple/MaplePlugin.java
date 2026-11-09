@@ -33,7 +33,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.map.MapCanvas;
 import org.bukkit.map.MapRenderer;
 import org.bukkit.map.MapView;
@@ -351,12 +350,9 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             view.setScale(MapView.Scale.CLOSEST);
             for (MapRenderer renderer : new ArrayList<>(view.getRenderers())) view.removeRenderer(renderer);
             view.addRenderer(new ImageTileRenderer(tile));
-            ItemStack map = new ItemStack(Material.FILLED_MAP);
-            MapMeta meta = (MapMeta) map.getItemMeta();
-            meta.setMapView(view);
-            map.setItemMeta(meta);
+            ItemStack map = mapItem(view);
             frame.setRotation(Rotation.NONE);
-            frame.setItem(map, false);
+            frame.setItem(map);
             Location at = frame.getLocation();
             refs.add(new FrameRef(world.getName(), at.getBlockX(), at.getBlockY(), at.getBlockZ(), view.getId()));
         }
@@ -379,7 +375,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
         graphics.dispose();
         for (int index = 0; index < record.frames.size(); index++) {
             FrameRef ref = record.frames.get(index);
-            MapView view = Bukkit.getMap(ref.mapId);
+            MapView view = Bukkit.getMap((short) ref.mapId);
             if (view == null) {
                 view = Bukkit.createMap(world);
                 view.setScale(MapView.Scale.CLOSEST);
@@ -394,14 +390,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             ItemFrame frame = findFrame(world, ref);
             if (frame != null) {
                 ItemStack item = frame.getItem();
-                if (!(item != null && item.getItemMeta() instanceof MapMeta mapMeta && mapMeta.getMapView() != null
-                        && mapMeta.getMapView().getId() == view.getId())) {
-                    ItemStack map = new ItemStack(Material.FILLED_MAP);
-                    MapMeta meta = (MapMeta) map.getItemMeta();
-                    meta.setMapView(view);
-                    map.setItemMeta(meta);
-                    frame.setItem(map, false);
-                }
+                if (mapIdOf(item) != view.getId()) frame.setItem(mapItem(view));
             }
         }
         saveRecord(id, record);
@@ -423,7 +412,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
     private void clearRecord(ImageRecord record) {
         World world = Bukkit.getWorld(record.worldName);
         for (FrameRef ref : record.frames) {
-            MapView view = Bukkit.getMap(ref.mapId);
+            MapView view = Bukkit.getMap((short) ref.mapId);
             if (view != null) {
                 for (MapRenderer renderer : new ArrayList<>(view.getRenderers())) {
                     if (renderer instanceof ImageTileRenderer) view.removeRenderer(renderer);
@@ -433,10 +422,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             ItemFrame frame = findFrame(world, ref);
             if (frame == null) continue;
             ItemStack item = frame.getItem();
-            if (item != null && item.getItemMeta() instanceof MapMeta mapMeta && mapMeta.getMapView() != null
-                    && mapMeta.getMapView().getId() == ref.mapId) {
-                frame.setItem(new ItemStack(Material.AIR), false);
-            }
+            if (mapIdOf(item) == ref.mapId) frame.setItem(new ItemStack(Material.AIR));
         }
     }
 
@@ -488,9 +474,8 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
 
     private boolean isMapleFrame(ItemFrame frame) {
         ItemStack item = frame.getItem();
-        if (item.getType() != Material.FILLED_MAP || !(item.getItemMeta() instanceof MapMeta meta) || !meta.hasMapView()
-                || meta.getMapView() == null) return false;
-        int id = meta.getMapView().getId();
+        int id = mapIdOf(item);
+        if (id < 0) return false;
         for (ImageRecord record : images.values()) {
             for (FrameRef ref : record.frames) if (ref.mapId == id) return true;
         }
@@ -564,5 +549,12 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
         button.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/image cancel"));
         base.addExtra(button);
         player.spigot().sendMessage(base);
+    }
+
+    /** 1.12 stores the map id in the item durability of Material.MAP. */
+    private static ItemStack mapItem(MapView view) { return new ItemStack(Material.MAP, 1, (short) view.getId()); }
+
+    private static int mapIdOf(ItemStack item) {
+        return item != null && item.getType() == Material.MAP ? item.getDurability() : -1;
     }
 }
