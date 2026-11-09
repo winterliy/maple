@@ -11,15 +11,15 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.1.2.build.74-stable")
+    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(25)
+    options.release.set(21)
     options.encoding = "UTF-8"
 }
 
@@ -31,5 +31,5 @@ tasks.processResources {
 }
 
 tasks.jar {
-    archiveClassifier.set("paper-26.1.2")
+    archiveClassifier.set("paper-1.21.11")
 }
