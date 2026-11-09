@@ -364,7 +364,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             Location at = frame.getLocation();
             refs.add(new FrameRef(world.getName(), at.getBlockX(), at.getBlockY(), at.getBlockZ(), view.getId()));
         }
-        ImageRecord record = new ImageRecord(pending.filename, world.getName(), frames.getFirst().getFacing(), refs);
+        ImageRecord record = new ImageRecord(pending.filename, world.getName(), frames.get(0).getFacing(), refs);
         images.put(pending.id, record);
         saveRecord(pending.id, record);
     }
