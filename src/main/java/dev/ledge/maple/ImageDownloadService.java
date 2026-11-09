@@ -174,5 +174,10 @@ final class ImageDownloadService implements AutoCloseable {
         executor.shutdownNow();
     }
 
-    private record ImageInfo(String format, String extension) { }
+    private static final class ImageInfo {
+        private final String format; private final String extension;
+        ImageInfo(String format, String extension) { this.format = format; this.extension = extension; }
+        String format() { return format; }
+        String extension() { return extension; }
+    }
 }

@@ -93,7 +93,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
             String file = getConfig().getString("images." + id + ".file");
             String worldName = getConfig().getString("images." + id + ".world");
             String faceName = getConfig().getString("images." + id + ".facing");
-            List<?> savedFrames = getConfig().getList("images." + id + ".frames", List.of());
+            List<?> savedFrames = getConfig().getList("images." + id + ".frames", java.util.Collections.emptyList());
             if (file == null || worldName == null || faceName == null) continue;
             try {
                 BlockFace facing = BlockFace.valueOf(faceName);
@@ -374,7 +374,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
         if (sourcePath == null || !Files.isRegularFile(sourcePath)) throw new IOException("plugins/images/" + record.filename + " 파일이 없습니다.");
         World world = Bukkit.getWorld(record.worldName);
         if (world == null) throw new IOException("월드가 로드되지 않았습니다: " + record.worldName);
-        int rows = record.frames.stream().map(frame -> frame.y).distinct().toList().size();
+        int rows = (int) record.frames.stream().map(frame -> frame.y).distinct().count();
         int width = record.frames.size() / Math.max(1, rows);
         BufferedImage source = readImage(sourcePath);
         BufferedImage scaled = new BufferedImage(width * MAP_PIXELS, rows * MAP_PIXELS, BufferedImage.TYPE_INT_ARGB);
@@ -445,10 +445,10 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
     }
 
     private Path resolveImage(String filename) {
-        if (filename == null || filename.isBlank()) return null;
+        if (filename == null || filename.trim().isEmpty()) return null;
         Path requested;
         try {
-            requested = Path.of(filename);
+            requested = java.nio.file.Paths.get(filename);
         } catch (RuntimeException exception) {
             return null;
         }
@@ -471,18 +471,18 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return List.of("load", "set", "del", "reload", "cancel").stream()
-                .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
+        if (args.length == 1) return java.util.Arrays.asList("load", "set", "del", "reload", "cancel").stream()
+                .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT))).collect(java.util.stream.Collectors.toList());
         if (args.length == 2 && args[0].equalsIgnoreCase("set")) {
             try (var files = Files.list(imagesDirectory)) {
                 return files.filter(Files::isRegularFile).map(path -> path.getFileName().toString())
-                        .filter(name -> name.startsWith(args[1])).toList();
+                        .filter(name -> name.startsWith(args[1])).collect(java.util.stream.Collectors.toList());
             } catch (IOException ignored) {
-                return List.of();
+                return java.util.Collections.emptyList();
             }
         }
-        if (args.length == 2 && args[0].equalsIgnoreCase("del")) return images.keySet().stream().toList();
-        return List.of();
+        if (args.length == 2 && args[0].equalsIgnoreCase("del")) return new java.util.ArrayList<>(images.keySet());
+        return java.util.Collections.emptyList();
     }
 
     @EventHandler(ignoreCancelled = true)
