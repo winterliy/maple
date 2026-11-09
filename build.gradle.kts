@@ -11,7 +11,8 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.destroystokyo.paper:paper-api:1.12.2-R0.1-SNAPSHOT")
+    // Paper has no 1.8.9 server; the 1.8.8 server jar (Paper cache/patched_1.8.8.jar, git-ignored) provides the Bukkit API.
+    compileOnly(files("libs/server-1.8.8.jar"))
     compileOnly("org.jetbrains:annotations:24.1.0")
     annotationProcessor("com.pkware.jabel:jabel-javac-plugin:1.0.1-2")
     compileOnly("com.pkware.jabel:jabel-javac-plugin:1.0.1-2")
@@ -36,5 +37,5 @@ tasks.processResources {
 }
 
 tasks.jar {
-    archiveClassifier.set("paper-1.12.2")
+    archiveClassifier.set("paper-1.8.9")
 }

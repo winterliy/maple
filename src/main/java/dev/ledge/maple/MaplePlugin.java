@@ -244,11 +244,7 @@ public final class MaplePlugin extends JavaPlugin implements Listener, CommandEx
         Player player = event.getPlayer();
         PendingSelection pending = selections.get(player.getUniqueId());
         boolean managed = isMapleFrame(frame);
-        // One right-click fires for both hands; only the main hand selects, and neither may rotate a Maple map.
-        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) {
-            if (pending != null || managed) event.setCancelled(true);
-            return;
-        }
+        // 1.8 has a single hand, so there is no off-hand event to filter.
         if (pending == null) {
             if (managed) event.setCancelled(true);
             return;

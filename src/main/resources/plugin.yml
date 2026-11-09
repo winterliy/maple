@@ -1,7 +1,7 @@
 name: Maple
 version: '${version}'
 main: dev.ledge.maple.MaplePlugin
-api-version: '1.12'
+api-version: '1.8'
 description: Image plugin for GLAP1-compatible servers.
 commands:
   image:
