@@ -6,9 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.MapItem;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.level.material.MapColor;
-import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.material.MaterialColor;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
 final class ImageMapPainter {
@@ -20,8 +18,8 @@ final class ImageMapPainter {
 
     static MapId createMap(ServerLevel level, int x, int z) {
         var map = MapItem.create(level, x, z, (byte) 0, false, false);
-        MapId id = map.get(DataComponents.MAP_ID);
-        if (id == null || MapItem.getSavedData(id, level) == null) {
+        MapId id = MapRefs.read(map);
+        if (id == null || MapRefs.data(id, level) == null) {
             throw new IllegalStateException("바닐라 지도 데이터를 만들지 못했습니다.");
         }
         return id;
@@ -47,7 +45,7 @@ final class ImageMapPainter {
         int[] row = new int[width];
         for (int index = 0; index < mapIds.size(); index++) {
             MapId id = mapIds.get(index);
-            MapItemSavedData data = MapItem.getSavedData(id, level);
+            MapItemSavedData data = MapRefs.data(id, level);
             if (data == null) throw new IllegalStateException("지도 데이터를 찾을 수 없습니다: " + id.id());
             int tileX = index % tileWidth;
             int tileY = index / tileWidth;
@@ -58,24 +56,31 @@ final class ImageMapPainter {
                     int alpha = argb >>> 24;
                     if (alpha < 128) {
                         // Transparent pixels stay transparent, matching the Paper plugin's map canvas.
-                        data.setColor(px, py, (byte) 0);
+                        setColor(data, px, py, (byte) 0);
                         continue;
                     }
                     int red = composite((argb >>> 16) & 0xFF, alpha);
                     int green = composite((argb >>> 8) & 0xFF, alpha);
                     int blue = composite(argb & 0xFF, alpha);
                     int key = ((red >>> 3) << 10) | ((green >>> 3) << 5) | (blue >>> 3);
-                    data.setColor(px, py, lookup[key]);
+                    setColor(data, px, py, lookup[key]);
                 }
             }
         }
     }
 
     static void clear(ServerLevel level, MapId id) {
-        MapItemSavedData data = MapItem.getSavedData(id, level);
+        MapItemSavedData data = MapRefs.data(id, level);
         if (data == null) return;
         for (int y = 0; y < MAP_PIXELS; y++) {
-            for (int x = 0; x < MAP_PIXELS; x++) data.setColor(x, y, (byte) 0);
+            for (int x = 0; x < MAP_PIXELS; x++) setColor(data, x, y, (byte) 0);
+        }
+    }
+
+    private static void setColor(MapItemSavedData data, int x, int y, byte color) {
+        if (data.colors[x + y * MAP_PIXELS] != color) {
+            data.colors[x + y * MAP_PIXELS] = color;
+            data.setDirty();
         }
     }
 
@@ -90,11 +95,12 @@ final class ImageMapPainter {
             if (paletteLookup != null) return paletteLookup;
             List<PaletteColor> colors = new ArrayList<>();
             for (int id = 1; id < 64; id++) {
-                MapColor color = MapColor.byId(id);
+                MaterialColor color = MaterialColor.MATERIAL_COLORS[id];
                 if (color == null || color.id != id) continue;
-                for (MapColor.Brightness brightness : MapColor.Brightness.values()) {
-                    int rgb = color.calculateARGBColor(brightness);
-                    colors.add(new PaletteColor(color.getPackedId(brightness), (rgb >>> 16) & 0xFF,
+                for (int brightness = 0; brightness < 4; brightness++) {
+                    int abgr = color.calculateRGBColor(brightness);
+                    int rgb = (abgr & 0xFF00FF00) | ((abgr & 0xFF) << 16) | ((abgr >> 16) & 0xFF);
+                    colors.add(new PaletteColor((byte) (color.id * 4 + brightness), (rgb >>> 16) & 0xFF,
                             (rgb >>> 8) & 0xFF, rgb & 0xFF));
                 }
             }
@@ -126,5 +132,20 @@ final class ImageMapPainter {
         }
     }
 
-    private record PaletteColor(byte packed, int red, int green, int blue) { }
+    private static final class PaletteColor {
+        private final byte packed;
+        private final int red;
+        private final int green;
+        private final int blue;
+        PaletteColor(byte packed, int red, int green, int blue) {
+            this.packed = packed;
+            this.red = red;
+            this.green = green;
+            this.blue = blue;
+        }
+        byte packed() { return packed; }
+        int red() { return red; }
+        int green() { return green; }
+        int blue() { return blue; }
+    }
 }
