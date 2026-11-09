@@ -29,7 +29,7 @@ final class ImageDownloadService implements AutoCloseable {
     private static final long MAX_IMAGE_PIXELS = 16_777_216L;
     private static final Pattern NAME = Pattern.compile("([\\p{L}\\p{N}_-]{1,48})(?:\\.(png|jpe?g|gif))?", Pattern.CASE_INSENSITIVE);
 
-    private final ExecutorService executor = Executors.newFixedThreadPool(2, Thread.ofVirtual().factory());
+    private final ExecutorService executor = Executors.newFixedThreadPool(2);
     CompletableFuture<StoredImage> download(Path directory, String requestedName, URI source) {
         return supplyAsync(() -> downloadNow(directory, requestedName, source));
     }
@@ -213,7 +213,7 @@ final class ImageDownloadService implements AutoCloseable {
 
     @Override
     public void close() {
-        executor.close();
+        executor.shutdown();
     }
 
     record StoredImage(Path path, BufferedImage image) { }

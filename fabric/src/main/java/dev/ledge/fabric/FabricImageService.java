@@ -24,15 +24,13 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.ItemFrame;
@@ -41,7 +39,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.LevelResource;
-import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.phys.AABB;
 
 final class FabricImageService {
@@ -91,7 +88,7 @@ final class FabricImageService {
 
     private void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("image")
-                .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
+                .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("load")
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .then(Commands.argument("url", StringArgumentType.greedyString())
@@ -124,7 +121,7 @@ final class FabricImageService {
             source.sendFailure(Component.literal("이미지 다운로드 실패: 안전한 이미지 URL(HTTPS)을 입력하세요."));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal("이미지를 다운로드합니다: " + name), false);
+        source.sendSuccess(Component.literal("이미지를 다운로드합니다: " + name), false);
         MinecraftServer commandServer = source.getServer();
         downloads.download(imagesDirectory, name, uri).whenComplete((image, failure) -> executeOnServer(commandServer, () -> {
             if (server != commandServer) return;
@@ -132,7 +129,7 @@ final class FabricImageService {
                 source.sendFailure(Component.literal("이미지 다운로드 실패: " + failureMessage(failure)));
                 return;
             }
-            source.sendSuccess(() -> Component.literal("이미지를 저장했습니다: " + image.path().getFileName()), false);
+            source.sendSuccess(Component.literal("이미지를 저장했습니다: " + image.path().getFileName()), false);
         }));
         return 1;
     }
@@ -157,7 +154,7 @@ final class FabricImageService {
             source.sendFailure(Component.literal("mods/images 폴더에서 이미지 파일을 찾을 수 없습니다: " + filename));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal("이미지를 준비합니다: " + filename), false);
+        source.sendSuccess(Component.literal("이미지를 준비합니다: " + filename), false);
         MinecraftServer commandServer = source.getServer();
         downloads.readImage(imagePath).whenComplete((image, failure) -> executeOnServer(commandServer, () -> {
             if (server != commandServer) return;
@@ -172,7 +169,7 @@ final class FabricImageService {
     }
 
     private boolean isMapleFrame(ItemFrame frame) {
-        net.minecraft.world.level.saveddata.maps.MapId id = frame.getItem().get(DataComponents.MAP_ID);
+        MapId id = MapRefs.read(frame.getItem());
         if (id == null) return false;
         for (ImageLayoutStore.ImageRecord record : images.values()) {
             for (ImageLayoutStore.FrameRecord row : record.frames) if (row.mapId == id.id()) return true;
@@ -191,7 +188,7 @@ final class FabricImageService {
             return pending != null || managed ? InteractionResult.FAIL : InteractionResult.PASS;
         }
         if (pending == null) return managed ? InteractionResult.FAIL : InteractionResult.PASS;
-        if (!serverPlayer.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
+        if (!serverPlayer.hasPermissions(2)) {
             selections.remove(serverPlayer.getUUID());
             serverPlayer.sendSystemMessage(Component.literal("권한이 없어 이미지 선택을 취소했습니다."));
             return InteractionResult.FAIL;
@@ -204,12 +201,12 @@ final class FabricImageService {
         BlockPos clicked = frame.blockPosition();
         if (pending.first == null) {
             pending.first = clicked;
-            pending.dimension = serverLevel.dimension().identifier().toString();
+            pending.dimension = serverLevel.dimension().location().toString();
             pending.facing = facing;
             serverPlayer.sendSystemMessage(Component.literal("pos1 설정 완료. 두 번째 액자를 우클릭하세요."));
             return InteractionResult.FAIL;
         }
-        if (!pending.dimension.equals(serverLevel.dimension().identifier().toString())) {
+        if (!pending.dimension.equals(serverLevel.dimension().location().toString())) {
             serverPlayer.sendSystemMessage(Component.literal("같은 월드에서 선택해야 합니다."));
             return InteractionResult.FAIL;
         }
@@ -243,7 +240,7 @@ final class FabricImageService {
                 BlockPos pos = frame.blockPosition();
                 MapId mapId = ImageMapPainter.createMap(level, pos.getX(), pos.getZ());
                 ItemStack map = new ItemStack(Items.FILLED_MAP);
-                map.set(DataComponents.MAP_ID, mapId);
+                MapRefs.write(map, mapId);
                 frame.setRotation(0);
                 frame.setItem(map, false);
                 frames.add(new ImageLayoutStore.FrameRecord(pos.getX(), pos.getY(), pos.getZ(), mapId.id()));
@@ -251,7 +248,7 @@ final class FabricImageService {
             }
             ImageMapPainter.draw(level, pending.image, selection.width, selection.height, mapIds);
             ImageLayoutStore.ImageRecord record = new ImageLayoutStore.ImageRecord(pending.filename,
-                    level.dimension().identifier().toString(), pending.facing.name(), selection.width, selection.height, frames);
+                    level.dimension().location().toString(), pending.facing.name(), selection.width, selection.height, frames);
             images.put(pending.id, record);
             layoutStore.save(images);
         } catch (IOException | RuntimeException exception) {
@@ -317,13 +314,13 @@ final class FabricImageService {
                 ImageMapPainter.clear(level, mapId);
                 BlockPos pos = new BlockPos(frameRecord.x, frameRecord.y, frameRecord.z);
                 ItemFrame frame = findFrame(level, pos, true);
-                if (frame != null && frame.getItem().get(DataComponents.MAP_ID) != null
-                        && frame.getItem().get(DataComponents.MAP_ID).equals(mapId)) {
+                if (frame != null && MapRefs.read(frame.getItem()) != null
+                        && MapRefs.read(frame.getItem()).equals(mapId)) {
                     frame.setItem(ItemStack.EMPTY, false);
                 }
             }
         }
-        source.sendSuccess(() -> Component.literal("이미지와 액자 지도를 삭제했습니다: " + id), false);
+        source.sendSuccess(Component.literal("이미지와 액자 지도를 삭제했습니다: " + id), false);
         return 1;
     }
 
@@ -340,7 +337,7 @@ final class FabricImageService {
         for (Map.Entry<String, ImageLayoutStore.ImageRecord> entry : new ArrayList<>(images.entrySet())) {
             restoreRecord(source.getServer(), entry.getKey(), entry.getValue());
         }
-        source.sendSuccess(() -> Component.literal("Fabric 이미지 " + count + "개를 다시 불러옵니다."), false);
+        source.sendSuccess(Component.literal("Fabric 이미지 " + count + "개를 다시 불러옵니다."), false);
         return 1;
     }
 
@@ -377,16 +374,16 @@ final class FabricImageService {
         for (ImageLayoutStore.FrameRecord frameRecord : record.frames) {
             MapId mapId = new MapId(frameRecord.mapId);
             boolean recreated = false;
-            if (MapItem.getSavedData(mapId, level) == null) {
+            if (MapRefs.data(mapId, level) == null) {
                 mapId = ImageMapPainter.createMap(level, frameRecord.x, frameRecord.z);
                 frameRecord.mapId = mapId.id();
                 recreated = true;
             }
             mapIds.add(mapId);
             ItemFrame frame = findFrame(level, new BlockPos(frameRecord.x, frameRecord.y, frameRecord.z), recreated);
-            if (frame != null && !mapId.equals(frame.getItem().get(DataComponents.MAP_ID))) {
+            if (frame != null && !mapId.equals(MapRefs.read(frame.getItem()))) {
                 ItemStack map = new ItemStack(Items.FILLED_MAP);
-                map.set(DataComponents.MAP_ID, mapId);
+                MapRefs.write(map, mapId);
                 frame.setItem(map, false);
             }
         }
@@ -405,7 +402,7 @@ final class FabricImageService {
 
     private static ServerLevel findLevel(MinecraftServer server, String dimension) {
         try {
-            ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, Identifier.parse(dimension));
+            ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(dimension));
             return server.getLevel(key);
         } catch (IllegalArgumentException exception) {
             return null;
