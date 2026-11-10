@@ -69,7 +69,7 @@ final class FabricImageService {
 
     private void onServerStarted(MinecraftServer startedServer) {
         server = startedServer;
-        layoutStore = new ImageLayoutStore(startedServer.getFile(startedServer.getLevelName()).toPath());
+        layoutStore = new ImageLayoutStore(startedServer.getLevel(DimensionType.OVERWORLD).getLevelStorage().getFolder().toPath()); // getLevelName() is client-only here
         try {
             Files.createDirectories(imagesDirectory);
             images.clear();
