@@ -1,0 +1,33 @@
+plugins {
+    id "net.fabricmc.fabric-loom-remap" version "${loom_version}"
+    id "legacy-looming" version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base { archivesName = project.archives_base_name }
+
+dependencies {
+    annotationProcessor 'com.pkware.jabel:jabel-javac-plugin:1.0.1-2'
+    compileOnly 'com.pkware.jabel:jabel-javac-plugin:1.0.1-2'
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings(legacy.yarn(project.minecraft_version, project.yarn_build))
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    sourceCompatibility = '17'
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}

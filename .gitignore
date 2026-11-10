@@ -10,3 +10,5 @@ build/
 # documentation kept locally only
 *.md
 README*
+fabric/run/
+libs/
