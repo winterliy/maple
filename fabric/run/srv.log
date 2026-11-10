@@ -1,0 +1,106 @@
+
+> Configure project :
+Fabric Loom: 1.16.3
+Legacy Looming: 1.16.1
+
+> Task :compileJava UP-TO-DATE
+> Task :processResources UP-TO-DATE
+> Task :classes UP-TO-DATE
+> Task :generateLog4jConfig UP-TO-DATE
+> Task :generateRemapClasspath UP-TO-DATE
+> Task :generateDLIConfig UP-TO-DATE
+> Task :configureLaunch UP-TO-DATE
+
+> Task :runServer
+[21:19:38] [main/INFO] (FabricLoader/GameProvider) Loading Minecraft 1.13.2 with Fabric Loader 0.20.1
+[21:19:39] [main/INFO] (FabricLoader) Loading 5 mods:
+	- fabricloader 0.20.1
+	- java 21
+	- ledge_fabric 0.2.0
+	- minecraft 1.13.2
+	- mixinextras 0.5.5
+[21:19:39] [main/INFO] (FabricLoader/Mixin) SpongePowered MIXIN Subsystem Version=0.8.7 Source=file:/Users/sinjaehyeon/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.17.5+mixin.0.8.7/cef8519a91129d0c21fa03bb9378f0e8ca810e5/sponge-mixin-0.17.5+mixin.0.8.7.jar Service=Knot/Fabric Env=SERVER
+[21:19:39] [main/INFO] (FabricLoader/Mixin) Loaded Fabric development mappings for mixin remapper!
+[21:19:40] [main/INFO] (FabricLoader/MixinExtras|Service) Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.5).
+[21:19:40] [main/WARN] (Minecraft) Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[21:19:40] [main/WARN] (Minecraft) Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[21:19:40] [main/WARN] (Minecraft) Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[21:19:40] [main/WARN] (Minecraft) Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[21:19:40] [main/WARN] (Minecraft) Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[21:19:40] [main/INFO] (Minecraft) Loaded 0 recipes
+[21:19:40] [main/INFO] (Minecraft) Loaded 0 advancements
+[21:19:40] [main/INFO] (Minecraft) [STDOUT]: [Maple] Legacy Fabric 0.2.0 initialized for Minecraft 1.13.2.
+[21:19:40] [Server thread/INFO] (Minecraft) Starting minecraft server version 1.13.2
+[21:19:40] [Server thread/INFO] (Minecraft) Loading properties
+[21:19:40] [Server thread/INFO] (Minecraft) Default game type: SURVIVAL
+[21:19:40] [Server thread/INFO] (Minecraft) Generating keypair
+[21:19:40] [Server thread/INFO] (Minecraft) Starting Minecraft server on *:25891
+[21:19:40] [Server thread/INFO] (Minecraft) Using default channel type
+[21:19:40] [Server thread/WARN] (Minecraft) **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[21:19:40] [Server thread/WARN] (Minecraft) The server will make no attempt to authenticate usernames. Beware.
+[21:19:40] [Server thread/WARN] (Minecraft) While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[21:19:40] [Server thread/WARN] (Minecraft) To change this, set "online-mode" to "true" in the server.properties file.
+[21:19:40] [Server thread/INFO] (Minecraft) Preparing level "world"
+[21:19:40] [Server thread/INFO] (Minecraft) Reloading ResourceManager: Default
+[21:19:41] [Server thread/INFO] (Minecraft) Loaded 524 recipes
+[21:19:41] [Server thread/INFO] (Minecraft) Loaded 571 advancements
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing start region for dimension minecraft:overworld
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing spawn area: 4%
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing spawn area: 8%
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing spawn area: 12%
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing spawn area: 16%
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing spawn area: 20%
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing spawn area: 24%
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing spawn area: 28%
+[21:19:41] [Server thread/INFO] (Minecraft) Preparing spawn area: 32%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 36%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 40%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 44%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 48%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 52%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 56%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 60%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 64%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 68%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 72%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 76%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 80%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 84%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 88%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 92%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 96%
+[21:19:42] [Server thread/INFO] (Minecraft) Preparing spawn area: 100%
+[21:19:42] [Server thread/INFO] (Minecraft) Time elapsed: 673 ms
+[21:19:42] [Server thread/INFO] (Minecraft) Done (1.613s)! For help, type "help"
+[21:19:42] [Server thread/INFO] (Minecraft) [STDOUT]: [Maple] Fabric 이미지 폴더: /Users/sinjaehyeon/Desktop/maple/fabric/run/mods/images (등록 1개)
+[21:19:43] [Server thread/INFO] (Minecraft) m1[/127.0.0.1:52351] logged in with entity id 232 at (1.5, 100.0, 2.5)
+[21:19:43] [Server thread/INFO] (Minecraft) m1 joined the game
+[21:19:47] [Server thread/INFO] (Minecraft) Teleported m1 to 1.5, 100.0, 2.5
+[21:19:49] [Server thread/INFO] (Minecraft) Item Frame has the following entity data: {id: "minecraft:filled_map", Count: 1b, tag: {map: 1}}
+[21:19:49] [Server thread/INFO] (Minecraft) Item Frame has the following entity data: {id: "minecraft:filled_map", Count: 1b, tag: {map: 0}}
+[21:19:53] [Server thread/INFO] (Minecraft) m1 lost connection: Disconnected
+[21:19:53] [Server thread/INFO] (Minecraft) m1 left the game
+[21:20:09] [Server thread/INFO] (Minecraft) Stopping the server
+[21:20:09] [Server thread/INFO] (Minecraft) Stopping server
+[21:20:09] [Server thread/INFO] (Minecraft) Saving players
+[21:20:09] [Server thread/INFO] (Minecraft) Saving worlds
+[21:20:09] [Server thread/INFO] (Minecraft) Saving chunks for level 'world'/minecraft:the_nether
+[21:20:09] [Server thread/INFO] (Minecraft) Saving chunks for level 'world'/minecraft:the_end
+[21:20:09] [Server thread/INFO] (Minecraft) Saving chunks for level 'world'/minecraft:overworld
+[21:20:09] [Server Shutdown Thread/INFO] (Minecraft) Stopping server
+[21:20:09] [Server Shutdown Thread/INFO] (Minecraft) Saving players
+[21:20:09] [Server Shutdown Thread/INFO] (Minecraft) Saving worlds
+[21:20:09] [Server Shutdown Thread/INFO] (Minecraft) Saving chunks for level 'world'/minecraft:the_nether
+[21:20:09] [Server Shutdown Thread/INFO] (Minecraft) Saving chunks for level 'world'/minecraft:the_end
+
+[Incubating] Problems report is available at: file:///Users/sinjaehyeon/Desktop/maple/fabric/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 33s
+6 actionable tasks: 1 executed, 5 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.2/userguide/configuration_cache_enabling.html
