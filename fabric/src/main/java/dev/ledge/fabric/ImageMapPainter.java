@@ -11,6 +11,12 @@ import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
 final class ImageMapPainter {
     static final int MAP_PIXELS = 128;
+    /** Vanilla map shading, 0xRRGGBB (MaterialColor#calculateRGBColor is client-only on dedicated servers). */
+    private static int shade(int rgb, int brightness) {
+        int m = brightness == 3 ? 135 : brightness == 2 ? 255 : brightness == 1 ? 220 : 180;
+        return ((((rgb >> 16) & 0xFF) * m / 255) << 16) | ((((rgb >> 8) & 0xFF) * m / 255) << 8) | ((rgb & 0xFF) * m / 255);
+    }
+
     private static final int PALETTE_SIZE = 32 * 32 * 32;
     private static volatile byte[] paletteLookup;
 
@@ -98,8 +104,7 @@ final class ImageMapPainter {
                 MaterialColor color = MaterialColor.MATERIAL_COLORS[id];
                 if (color == null || color.id != id) continue;
                 for (int brightness = 0; brightness < 4; brightness++) {
-                    int abgr = color.calculateRGBColor(brightness);
-                    int rgb = (abgr & 0xFF00FF00) | ((abgr & 0xFF) << 16) | ((abgr >> 16) & 0xFF);
+                    int rgb = shade(color.col, brightness);
                     colors.add(new PaletteColor((byte) (color.id * 4 + brightness), (rgb >>> 16) & 0xFF,
                             (rgb >>> 8) & 0xFF, rgb & 0xFF));
                 }
