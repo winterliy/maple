@@ -19,6 +19,19 @@ final class ImageMapPainter {
 
     private ImageMapPainter() { }
 
+    /**
+     * Map data by id through the world's persistent state (FilledMapItem#getMapState(int, World) is client-only).
+     */
+    private static MapState state(World world, int id) {
+        return (MapState) world.getPersistentStateManager().getOrCreate(MapState.class, "map_" + id);
+    }
+
+    /** Vanilla map shading, 0xRRGGBB (MaterialColor#getRenderColor is client-only on dedicated servers). */
+    private static int shade(int rgb, int brightness) {
+        int m = brightness == 3 ? 135 : brightness == 2 ? 255 : brightness == 1 ? 220 : 180;
+        return ((((rgb >> 16) & 0xFF) * m / 255) << 16) | ((((rgb >> 8) & 0xFF) * m / 255) << 8) | ((rgb & 0xFF) * m / 255);
+    }
+
     /** Creates a fresh vanilla map and returns its id. */
     static int createMap(World world, int x, int z) {
         PersistentStateManager manager = world.getPersistentStateManager();
@@ -50,7 +63,7 @@ final class ImageMapPainter {
         byte[] lookup = paletteLookup();
         int[] row = new int[width];
         for (int index = 0; index < mapIds.size(); index++) {
-            MapState data = FilledMapItem.getMapState(mapIds.get(index), world);
+            MapState data = state(world, mapIds.get(index));
             if (data == null) throw new IllegalStateException("지도 데이터를 찾을 수 없습니다: " + mapIds.get(index));
             int tileX = index % tileWidth;
             int tileY = index / tileWidth;
@@ -71,7 +84,7 @@ final class ImageMapPainter {
     }
 
     static void clear(World world, int id) {
-        MapState data = FilledMapItem.getMapState(id, world);
+        MapState data = state(world, id);
         if (data == null) return;
         java.util.Arrays.fill(data.colors, (byte) 0);
         data.markDirty();
@@ -89,7 +102,7 @@ final class ImageMapPainter {
                 MaterialColor color = MaterialColor.COLORS[id];
                 if (color == null || color.id != id) continue;
                 for (int brightness = 0; brightness < 4; brightness++) {
-                    int rgb = color.getRenderColor(brightness);
+                    int rgb = shade(color.color, brightness);
                     colors.add(new int[]{id * 4 + brightness, (rgb >>> 16) & 0xFF, (rgb >>> 8) & 0xFF, rgb & 0xFF});
                 }
             }
