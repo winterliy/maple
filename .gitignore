@@ -10,3 +10,4 @@ build/
 # documentation kept locally only
 *.md
 README*
+libs/
