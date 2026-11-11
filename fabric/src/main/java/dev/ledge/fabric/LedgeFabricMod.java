@@ -2,6 +2,7 @@ package dev.ledge.fabric;
 
 import net.fabricmc.api.ModInitializer;
 import net.legacyfabric.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.legacyfabric.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
 public final class LedgeFabricMod implements ModInitializer {
     private static FabricImageService service;
@@ -15,6 +16,7 @@ public final class LedgeFabricMod implements ModInitializer {
         service = new FabricImageService();
         ServerLifecycleEvents.SERVER_STARTING.register(service::onServerStarting);
         ServerLifecycleEvents.SERVER_STARTED.register(service::onServerStarted);
-        System.out.println("[Maple] Legacy Fabric 0.2.0 initialized for Minecraft 1.8.9.");
+        ServerTickEvents.END_SERVER_TICK.register(service::tick);
+        System.out.println("[Maple] Legacy Fabric 0.2.0 initialized for Minecraft 1.7.10.");
     }
 }

@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Pattern;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.command.AbstractCommand;
@@ -25,10 +26,8 @@ import net.minecraft.item.Items;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.LiteralText;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
 
-/** Maple for Legacy Fabric 1.12.2: /image load, set, del, reload, cancel and two-click frame selection. */
+/** Maple for Legacy Fabric 1.7.10: /image load, set, del, reload, cancel and two-click frame selection. */
 public final class FabricImageService {
     private static final Pattern IMAGE_ID = Pattern.compile("[a-zA-Z0-9_-]{1,48}");
     private static final int MAX_MAPS_PER_IMAGE = 256;
@@ -39,11 +38,18 @@ public final class FabricImageService {
     private final Map<UUID, Pending> selections = new HashMap<>();
     private MinecraftServer server;
 
+    /** 1.7.10 has no server executor: background results are queued and drained on the server tick. */
+    private final ConcurrentLinkedQueue<Runnable> mainThread = new ConcurrentLinkedQueue<>();
+
     void onServerStarting(MinecraftServer started) { }
+
+    void tick(MinecraftServer ticking) { for (Runnable task; (task = mainThread.poll()) != null; ) task.run(); }
+
+    private void submit(Runnable task) { mainThread.add(task); }
 
     void onServerStarted(MinecraftServer started) {
         server = started;
-        layoutStore = new ImageLayoutStore(new File(started.getRunDirectory(), started.getLevelName()).toPath());
+        layoutStore = new ImageLayoutStore(started.getFile(started.getLevelName()).toPath());
         try {
             Files.createDirectories(imagesDirectory);
             images.clear();
@@ -72,6 +78,7 @@ public final class FabricImageService {
             }
         }
         @Override public boolean isAccessible(CommandSource source) { return source.canUseCommand(2, "image"); }
+        @Override public int compareTo(Object other) { return getCommandName().compareTo(((net.minecraft.command.Command) other).getCommandName()); }
     }
 
     private static void tell(CommandSource source, String text) { source.sendMessage(new LiteralText(text)); }
@@ -81,7 +88,7 @@ public final class FabricImageService {
         try { uri = URI.create(url); } catch (IllegalArgumentException exception) { tell(source, "URL 형식이 올바르지 않습니다."); return; }
         if (uri.getScheme() == null || !uri.getScheme().equalsIgnoreCase("https")) { tell(source, "이미지 다운로드 실패: 안전한 이미지 URL(HTTPS)을 입력하세요."); return; }
         tell(source, "이미지를 다운로드합니다: " + name);
-        downloads.download(imagesDirectory, name, uri).whenComplete((image, failure) -> server.submit(() -> {
+        downloads.download(imagesDirectory, name, uri).whenComplete((image, failure) -> submit(() -> {
             if (failure != null) tell(source, "이미지 다운로드 실패: " + message(failure));
             else tell(source, "이미지를 저장했습니다: " + image.path().getFileName());
         }));
@@ -95,7 +102,7 @@ public final class FabricImageService {
         if (path == null || !Files.isRegularFile(path)) { tell(source, "mods/images 폴더에서 이미지 파일을 찾을 수 없습니다: " + filename); return; }
         ServerPlayerEntity player = (ServerPlayerEntity) source;
         tell(source, "이미지를 준비합니다: " + filename);
-        downloads.readImage(path).whenComplete((image, failure) -> server.submit(() -> {
+        downloads.readImage(path).whenComplete((image, failure) -> submit(() -> {
             if (failure != null) { tell(player, "이미지를 읽지 못했습니다: " + message(failure)); return; }
             Pending pending = new Pending();
             pending.id = id.toLowerCase(java.util.Locale.ROOT);
@@ -116,9 +123,8 @@ public final class FabricImageService {
         Pending pending = selections.get(player.getUuid());
         boolean managed = isMapleFrame(frame);
         if (pending == null) return managed;
-        BlockPos clicked = frame.getTilePos();
-        Direction facing = frame.direction;
-        if (facing.getAxis().isVertical()) { tell(player, "벽을 향한 액자를 선택하세요."); return true; }
+        Pos clicked = Pos.of(frame);
+        int facing = frame.field_5328;
         if (pending.first == null) {
             pending.first = clicked;
             pending.facing = facing;
@@ -150,7 +156,7 @@ public final class FabricImageService {
         return false;
     }
 
-    private void place(ServerWorld world, Pending pending, BlockPos second) throws IOException {
+    private void place(ServerWorld world, Pending pending, Pos second) throws IOException {
         List<ItemFrameEntity> frames = selectFrames(world, pending.first, second, pending.facing);
         int width = widthOf(pending.first, second, pending.facing);
         int height = Math.abs(pending.first.getY() - second.getY()) + 1;
@@ -158,7 +164,7 @@ public final class FabricImageService {
         List<Integer> mapIds = new ArrayList<>();
         try {
             for (ItemFrameEntity frame : frames) {
-                BlockPos pos = frame.getTilePos();
+                Pos pos = Pos.of(frame);
                 int id = ImageMapPainter.createMap(world, pos.getX(), pos.getZ());
                 frame.setRotation(0);
                 frame.setHeldItemStack(new ItemStack(Items.FILLED_MAP, 1, id));
@@ -166,26 +172,26 @@ public final class FabricImageService {
                 mapIds.add(id);
             }
             ImageMapPainter.draw(world, pending.image, width, height, mapIds);
-            images.put(pending.id, new ImageLayoutStore.ImageRecord(pending.filename, String.valueOf(pending.dimension), pending.facing.name(), width, height, rows));
+            images.put(pending.id, new ImageLayoutStore.ImageRecord(pending.filename, String.valueOf(pending.dimension), String.valueOf(pending.facing), width, height, rows));
             layoutStore.save(images);
         } catch (IOException | RuntimeException exception) {
             images.remove(pending.id);
             for (ImageLayoutStore.FrameRecord row : rows) {
                 ImageMapPainter.clear(world, row.mapId);
-                ItemFrameEntity frame = frameAt(world, new BlockPos(row.x, row.y, row.z));
+                ItemFrameEntity frame = frameAt(world, new Pos(row.x, row.y, row.z));
                 if (frame != null) frame.setHeldItemStack(null);
             }
             throw exception;
         }
     }
 
-    private static int widthOf(BlockPos a, BlockPos b, Direction facing) {
-        boolean xPlane = facing == Direction.NORTH || facing == Direction.SOUTH;
+    private static int widthOf(Pos a, Pos b, int facing) {
+        boolean xPlane = facing == NORTH || facing == SOUTH;
         return (xPlane ? Math.abs(a.getX() - b.getX()) : Math.abs(a.getZ() - b.getZ())) + 1;
     }
 
-    private List<ItemFrameEntity> selectFrames(ServerWorld world, BlockPos first, BlockPos second, Direction facing) {
-        boolean xPlane = facing == Direction.NORTH || facing == Direction.SOUTH;
+    private List<ItemFrameEntity> selectFrames(ServerWorld world, Pos first, Pos second, int facing) {
+        boolean xPlane = facing == NORTH || facing == SOUTH;
         if ((xPlane && first.getZ() != second.getZ()) || (!xPlane && first.getX() != second.getX())) throw new IllegalArgumentException("두 액자는 같은 벽 평면에 있어야 합니다.");
         int minX = Math.min(first.getX(), second.getX()), maxX = Math.max(first.getX(), second.getX());
         int minY = Math.min(first.getY(), second.getY()), maxY = Math.max(first.getY(), second.getY());
@@ -196,10 +202,10 @@ public final class FabricImageService {
         List<ItemFrameEntity> ordered = new ArrayList<>();
         for (int row = 0; row < height; row++) {
             for (int col = 0; col < width; col++) {
-                int x = xPlane ? (facing == Direction.NORTH ? maxX - col : minX + col) : minX;
-                int z = xPlane ? minZ : (facing == Direction.EAST ? maxZ - col : minZ + col);
-                ItemFrameEntity frame = frameAt(world, new BlockPos(x, maxY - row, z));
-                if (frame == null || frame.direction != facing) throw new IllegalArgumentException("선택 영역의 모든 칸에 같은 방향의 액자가 있어야 합니다.");
+                int x = xPlane ? (facing == NORTH ? maxX - col : minX + col) : minX;
+                int z = xPlane ? minZ : (facing == EAST ? maxZ - col : minZ + col);
+                ItemFrameEntity frame = frameAt(world, new Pos(x, maxY - row, z));
+                if (frame == null || frame.field_5328 != facing) throw new IllegalArgumentException("선택 영역의 모든 칸에 같은 방향의 액자가 있어야 합니다.");
                 if (frame.getHeldItemStack() != null) throw new IllegalArgumentException("선택한 액자 영역은 비어 있어야 합니다.");
                 ordered.add(frame);
             }
@@ -207,9 +213,9 @@ public final class FabricImageService {
         return ordered;
     }
 
-    private static ItemFrameEntity frameAt(ServerWorld world, BlockPos pos) {
+    private static ItemFrameEntity frameAt(ServerWorld world, Pos pos) {
         for (Object entity : new ArrayList<Object>(world.loadedEntities)) {
-            if (entity instanceof ItemFrameEntity && ((ItemFrameEntity) entity).getTilePos().equals(pos)) return (ItemFrameEntity) entity;
+            if (entity instanceof ItemFrameEntity && Pos.of((ItemFrameEntity) entity).equals(pos)) return (ItemFrameEntity) entity;
         }
         return null;
     }
@@ -222,7 +228,7 @@ public final class FabricImageService {
         ServerWorld world = server.getWorld(Integer.parseInt(record.dimension));
         for (ImageLayoutStore.FrameRecord row : record.frames) {
             ImageMapPainter.clear(world, row.mapId);
-            ItemFrameEntity frame = frameAt(world, new BlockPos(row.x, row.y, row.z));
+            ItemFrameEntity frame = frameAt(world, new Pos(row.x, row.y, row.z));
             if (frame != null && frame.getHeldItemStack() != null && frame.getHeldItemStack().getItem() == Items.FILLED_MAP && frame.getHeldItemStack().getData() == row.mapId) frame.setHeldItemStack(null);
         }
         tell(source, "이미지와 액자 지도를 삭제했습니다: " + requested);
@@ -237,7 +243,7 @@ public final class FabricImageService {
     private void restore(String id, ImageLayoutStore.ImageRecord record) {
         Path path = resolve(record.filename);
         if (path == null || !Files.isRegularFile(path)) { System.out.println("[Maple] 이미지 " + id + " 복구 파일이 없습니다: " + record.filename); return; }
-        downloads.readImage(path).whenComplete((image, failure) -> server.submit(() -> {
+        downloads.readImage(path).whenComplete((image, failure) -> submit(() -> {
             if (failure != null || images.get(id) != record) return;
             try {
                 ServerWorld world = server.getWorld(Integer.parseInt(record.dimension));
@@ -246,7 +252,7 @@ public final class FabricImageService {
                 for (ImageLayoutStore.FrameRecord row : record.frames) ids.add(row.mapId);
                 ImageMapPainter.draw(world, image, record.width, record.height, ids);
                 for (ImageLayoutStore.FrameRecord row : record.frames) {
-                    ItemFrameEntity frame = frameAt(world, new BlockPos(row.x, row.y, row.z));
+                    ItemFrameEntity frame = frameAt(world, new Pos(row.x, row.y, row.z));
                     if (frame != null && frame.getHeldItemStack() == null) frame.setHeldItemStack(new ItemStack(Items.FILLED_MAP, 1, row.mapId));
                 }
             } catch (RuntimeException exception) {
@@ -266,7 +272,20 @@ public final class FabricImageService {
         return cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
     }
 
+    /** Hanging-entity facing in 1.7.10: 0 south, 1 west, 2 north, 3 east. */
+    private static final int SOUTH = 0, NORTH = 2, EAST = 3;
+
+    /** Block position of a hanging entity (1.7.10 has no BlockPos on entities). */
+    private static final class Pos {
+        final int x, y, z;
+        Pos(int x, int y, int z) { this.x = x; this.y = y; this.z = z; }
+        static Pos of(ItemFrameEntity frame) { return new Pos(frame.field_5329, frame.field_5330, frame.field_5331); }
+        int getX() { return x; } int getY() { return y; } int getZ() { return z; }
+        @Override public boolean equals(Object o) { return o instanceof Pos && ((Pos) o).x == x && ((Pos) o).y == y && ((Pos) o).z == z; }
+        @Override public int hashCode() { return (x * 31 + y) * 31 + z; }
+    }
+
     private static final class Pending {
-        String id; String filename; BufferedImage image; BlockPos first; Direction facing; int dimension;
+        String id; String filename; BufferedImage image; Pos first; int facing = -1; int dimension;
     }
 }

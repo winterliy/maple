@@ -12,19 +12,18 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Legacy Fabric 1.12.2 has no use-entity event, so right-clicks on item frames are intercepted here. */
+/** Legacy Fabric 1.7.10 has no use-entity event, so right-clicks on item frames are intercepted here. */
 @Mixin(ServerPlayNetworkHandler.class)
 public abstract class MixinServerPlayNetworkHandler {
     @Shadow public ServerPlayerEntity player;
 
     @Inject(method = "onPlayerInteractEntity", at = @At("HEAD"), cancellable = true)
     private void maple$onInteract(PlayerInteractEntityC2SPacket packet, CallbackInfo ci) {
-        if (packet.getType() == PlayerInteractEntityC2SPacket.Type.ATTACK) {
+        if (packet.method_7984() == net.minecraft.class_2062.ATTACK) {
             Entity target = packet.getEntity(player.getServerWorld());
             if (target instanceof ItemFrameEntity && LedgeFabricMod.service().protects(player, (ItemFrameEntity) target)) ci.cancel();
             return;
         }
-        if (packet.getType() == PlayerInteractEntityC2SPacket.Type.INTERACT_AT) return;
         Entity target = packet.getEntity(player.getServerWorld());
         if (target instanceof ItemFrameEntity && LedgeFabricMod.service().onFrameUse(player, (ItemFrameEntity) target)) ci.cancel();
     }

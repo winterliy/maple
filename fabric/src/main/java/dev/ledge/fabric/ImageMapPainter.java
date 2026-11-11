@@ -11,7 +11,7 @@ import net.minecraft.item.map.MapState;
 import net.minecraft.world.PersistentStateManager;
 import net.minecraft.world.World;
 
-/** Draws an image onto vanilla filled maps (1.12: the map id is the item damage). */
+/** Draws an image onto vanilla filled maps (1.7.10: the map id is the item damage). */
 final class ImageMapPainter {
     static final int MAP_PIXELS = 128;
     private static final int PALETTE_SIZE = 32 * 32 * 32;
@@ -23,7 +23,7 @@ final class ImageMapPainter {
      * Map data by id through the world's persistent state (FilledMapItem#getMapState(int, World) is client-only).
      */
     private static MapState state(World world, int id) {
-        return (MapState) world.getPersistentStateManager().getOrCreate(MapState.class, "map_" + id);
+        return (MapState) world.persistentStateManager.getOrCreate(MapState.class, "map_" + id);
     }
 
     /** Vanilla map shading, 0xRRGGBB (MaterialColor#getRenderColor is client-only on dedicated servers). */
@@ -34,13 +34,13 @@ final class ImageMapPainter {
 
     /** Creates a fresh vanilla map and returns its id. */
     static int createMap(World world, int x, int z) {
-        PersistentStateManager manager = world.getPersistentStateManager();
+        PersistentStateManager manager = world.persistentStateManager;
         int id = manager.getInt("map");
         MapState state = new MapState("map_" + id);
         state.scale = 0;
         state.xCenter = x;
         state.zCenter = z;
-        state.dimensionId = (byte) world.dimension.getType();
+        state.dimensionId = (byte) world.dimension.dimensionType;
         state.markDirty();
         manager.replace("map_" + id, state);
         return id;
