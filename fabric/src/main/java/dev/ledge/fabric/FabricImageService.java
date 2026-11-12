@@ -22,12 +22,11 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
+import net.minecraft.item.Item;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.LiteralText;
 
-/** Maple for Legacy Fabric 1.7.10: /image load, set, del, reload, cancel and two-click frame selection. */
+/** Maple for Legacy Fabric 1.5.2: /image load, set, del, reload, cancel and two-click frame selection. */
 public final class FabricImageService {
     private static final Pattern IMAGE_ID = Pattern.compile("[a-zA-Z0-9_-]{1,48}");
     private static final int MAX_MAPS_PER_IMAGE = 256;
@@ -35,15 +34,23 @@ public final class FabricImageService {
     private final ImageDownloadService downloads = new ImageDownloadService();
     private ImageLayoutStore layoutStore;
     private final Map<String, ImageLayoutStore.ImageRecord> images = new LinkedHashMap<>();
-    private final Map<UUID, Pending> selections = new HashMap<>();
+    private final Map<String, Pending> selections = new HashMap<>();
     private MinecraftServer server;
 
-    /** 1.7.10 has no server executor: background results are queued and drained on the server tick. */
+    /** 1.5.2 has no server executor: background results are queued and drained on the server tick. */
     private final ConcurrentLinkedQueue<Runnable> mainThread = new ConcurrentLinkedQueue<>();
 
     void onServerStarting(MinecraftServer started) { }
 
-    void tick(MinecraftServer ticking) { for (Runnable task; (task = mainThread.poll()) != null; ) task.run(); }
+    private boolean started;
+
+    /** Commands are registered when the command manager is built; worlds exist only once the server ticks. */
+    public void registerCommands(net.minecraft.server.command.CommandRegistry registry) { registry.registerCommand(new ImageCommand()); }
+
+    public void tick(MinecraftServer ticking) {
+        if (!started) { started = true; onServerStarted(ticking); }
+        for (Runnable task; (task = mainThread.poll()) != null; ) task.run();
+    }
 
     private void submit(Runnable task) { mainThread.add(task); }
 
@@ -57,7 +64,6 @@ public final class FabricImageService {
         } catch (IOException exception) {
             System.out.println("[Maple] 이미지 목록을 읽지 못했습니다: " + exception.getMessage());
         }
-        ((net.minecraft.server.command.CommandManager) started.getCommandManager()).registerCommand(new ImageCommand());
         System.out.println("[Maple] Fabric 이미지 폴더: " + imagesDirectory + " (등록 " + images.size() + "개)");
         for (Map.Entry<String, ImageLayoutStore.ImageRecord> entry : new ArrayList<>(images.entrySet())) restore(entry.getKey(), entry.getValue());
     }
@@ -81,7 +87,7 @@ public final class FabricImageService {
         @Override public int compareTo(Object other) { return getCommandName().compareTo(((net.minecraft.command.Command) other).getCommandName()); }
     }
 
-    private static void tell(CommandSource source, String text) { source.sendMessage(new LiteralText(text)); }
+    private static void tell(CommandSource source, String text) { source.method_3331(text); }
 
     private void load(CommandSource source, String name, String url) {
         URI uri;
@@ -108,19 +114,19 @@ public final class FabricImageService {
             pending.id = id.toLowerCase(java.util.Locale.ROOT);
             pending.filename = path.getFileName().toString();
             pending.image = image;
-            selections.put(player.getUuid(), pending);
+            selections.put(player.username, pending);
             tell(player, "첫 번째 액자(pos1)를 우클릭하세요. 취소: /image cancel");
         }));
     }
 
     private void cancel(CommandSource source) {
-        if (source instanceof ServerPlayerEntity && selections.remove(((ServerPlayerEntity) source).getUuid()) != null) tell(source, "이미지 선택을 취소했습니다.");
+        if (source instanceof ServerPlayerEntity && selections.remove(((ServerPlayerEntity) source).username) != null) tell(source, "이미지 선택을 취소했습니다.");
         else tell(source, "취소할 이미지 선택이 없습니다.");
     }
 
     /** Called from the interact mixin; returns true when the click was used for selection (the packet is cancelled). */
     public boolean onFrameUse(ServerPlayerEntity player, ItemFrameEntity frame) {
-        Pending pending = selections.get(player.getUuid());
+        Pending pending = selections.get(player.username);
         boolean managed = isMapleFrame(frame);
         if (pending == null) return managed;
         Pos clicked = Pos.of(frame);
@@ -135,7 +141,7 @@ public final class FabricImageService {
         if (pending.dimension != player.dimension) { tell(player, "같은 월드에서 선택해야 합니다."); return true; }
         if (pending.facing != facing) { tell(player, "두 액자는 같은 방향의 벽을 향해야 합니다."); return true; }
         if (pending.first.equals(clicked)) { tell(player, "pos1과 다른 액자를 선택하세요."); return true; }
-        selections.remove(player.getUuid());
+        selections.remove(player.username);
         try {
             place(player.getServerWorld(), pending, clicked);
             tell(player, "이미지를 액자에 배치했습니다: " + pending.id);
@@ -150,7 +156,7 @@ public final class FabricImageService {
 
     private boolean isMapleFrame(ItemFrameEntity frame) {
         ItemStack item = frame.getHeldItemStack();
-        if (item == null || item.getItem() != Items.FILLED_MAP) return false;
+        if (item == null || item.getItem() != Item.MAP) return false;
         int id = item.getData();
         for (ImageLayoutStore.ImageRecord record : images.values()) for (ImageLayoutStore.FrameRecord row : record.frames) if (row.mapId == id) return true;
         return false;
@@ -167,7 +173,7 @@ public final class FabricImageService {
                 Pos pos = Pos.of(frame);
                 int id = ImageMapPainter.createMap(world, pos.getX(), pos.getZ());
                 frame.setRotation(0);
-                frame.setHeldItemStack(new ItemStack(Items.FILLED_MAP, 1, id));
+                frame.setHeldItemStack(new ItemStack(Item.MAP, 1, id));
                 rows.add(new ImageLayoutStore.FrameRecord(pos.getX(), pos.getY(), pos.getZ(), id));
                 mapIds.add(id);
             }
@@ -229,7 +235,7 @@ public final class FabricImageService {
         for (ImageLayoutStore.FrameRecord row : record.frames) {
             ImageMapPainter.clear(world, row.mapId);
             ItemFrameEntity frame = frameAt(world, new Pos(row.x, row.y, row.z));
-            if (frame != null && frame.getHeldItemStack() != null && frame.getHeldItemStack().getItem() == Items.FILLED_MAP && frame.getHeldItemStack().getData() == row.mapId) frame.setHeldItemStack(null);
+            if (frame != null && frame.getHeldItemStack() != null && frame.getHeldItemStack().getItem() == Item.MAP && frame.getHeldItemStack().getData() == row.mapId) frame.setHeldItemStack(null);
         }
         tell(source, "이미지와 액자 지도를 삭제했습니다: " + requested);
     }
@@ -253,7 +259,7 @@ public final class FabricImageService {
                 ImageMapPainter.draw(world, image, record.width, record.height, ids);
                 for (ImageLayoutStore.FrameRecord row : record.frames) {
                     ItemFrameEntity frame = frameAt(world, new Pos(row.x, row.y, row.z));
-                    if (frame != null && frame.getHeldItemStack() == null) frame.setHeldItemStack(new ItemStack(Items.FILLED_MAP, 1, row.mapId));
+                    if (frame != null && frame.getHeldItemStack() == null) frame.setHeldItemStack(new ItemStack(Item.MAP, 1, row.mapId));
                 }
             } catch (RuntimeException exception) {
                 System.out.println("[Maple] 이미지 " + id + " 복구 실패: " + exception.getMessage());

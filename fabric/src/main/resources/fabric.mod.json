@@ -3,12 +3,12 @@
   "id": "ledge_fabric",
   "version": "${version}",
   "name": "Maple",
-  "description": "Server-side image map mod for Minecraft 1.7.10 (Legacy Fabric): /image load, set, del, reload, cancel.",
+  "description": "Server-side image map mod for Minecraft 1.5.2 (Legacy Fabric): /image load, set, del, reload, cancel.",
   "authors": ["winterliy"],
   "contact": { "sources": "https://github.com/winterliy/maple" },
   "license": "MIT",
   "environment": "server",
   "entrypoints": { "main": ["dev.ledge.fabric.LedgeFabricMod"] },
   "mixins": ["maple-legacy.mixins.json"],
-  "depends": { "fabricloader": ">=0.15.0", "minecraft": "1.7.10" }
+  "depends": { "fabricloader": ">=0.15.0", "minecraft": "1.5.2" }
 }

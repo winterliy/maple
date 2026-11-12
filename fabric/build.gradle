@@ -14,7 +14,9 @@ dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings(legacy.yarn(project.minecraft_version, project.yarn_build))
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.legacyfabric.legacy-fabric-api:legacy-fabric-api:${project.fabric_version}"
+    // 1.5.2 servers do not ship Gson; bundle it (jar-in-jar).
+    implementation "com.google.code.gson:gson:2.8.9"
+    include "com.google.code.gson:gson:2.8.9"
 }
 
 processResources {

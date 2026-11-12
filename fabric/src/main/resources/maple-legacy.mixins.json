@@ -3,6 +3,6 @@
   "package": "dev.ledge.fabric.mixin",
   "compatibilityLevel": "JAVA_8",
   "mixins": [],
-  "server": ["MixinServerPlayNetworkHandler"],
+  "server": ["MixinServerPacketListener", "MixinCommandManager", "MixinMinecraftServer"],
   "injectors": { "defaultRequire": 1 }
 }

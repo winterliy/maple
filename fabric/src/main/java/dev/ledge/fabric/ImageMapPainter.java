@@ -11,7 +11,7 @@ import net.minecraft.item.map.MapState;
 import net.minecraft.world.PersistentStateManager;
 import net.minecraft.world.World;
 
-/** Draws an image onto vanilla filled maps (1.7.10: the map id is the item damage). */
+/** Draws an image onto vanilla filled maps (1.5.2: the map id is the item damage). */
 final class ImageMapPainter {
     static final int MAP_PIXELS = 128;
     private static final int PALETTE_SIZE = 32 * 32 * 32;
